@@ -1,6 +1,7 @@
 import random
 
 from action_space import ActionSpace
+from cell import Cell
 
 
 class Agent:
@@ -20,10 +21,9 @@ class Agent:
         Agent.id += 1
         return _id
 
-    def __init__(self, loop, env):
+    def __init__(self, env):
         self.environment = env
         self.id = Agent.new_id()
-        self._loop = loop
         self.x = None
         self.y = None
         self.speed = 0
@@ -67,16 +67,16 @@ class Agent:
         self.victory = False
         self.despawn()
 
-    async def automate(self):
+    def automate(self):
         return None
 
-    async def do_action(self, action):
+    def do_action(self, action):
         if self.action is None or self.action != action:
             self.action = action
         elif action == self.action:
             self.action_intensity = min(1, (1 / self.action_steps[action]) + self.action_intensity)
 
-    async def update(self):
+    def update(self):
 
         if self.state is Agent.INACTIVE:
             return
@@ -85,14 +85,14 @@ class Agent:
 
             """Update pixel value"""
             moved_centimeters = (self.action_intensity * Agent.MAX_SPEED)
-            self.action_progress += (moved_centimeters / self.environment.Cell.CELL_DIMENSION)
+            self.action_progress += (moved_centimeters / Cell.CELL_DIMENSION)
 
             if self.action_progress >= 1:
                 self.action_progress -= 1  # TODO, may break in some cases?
 
                 """Unset from current cell"""
                 current_cell = self.environment.grid[self.y, self.x]
-                #assert current_cell.occupant == self
+                assert current_cell.occupant == self
                 current_cell.occupant = None
 
                 """Update location"""
@@ -107,7 +107,7 @@ class Agent:
 
                 """Set to new cell"""
                 if self.y < 0 or self.x < 0 or self.y >= self.environment.h or self.x >= self.environment.w:
-                    await self.crash()
+                    self.crash()
                     return
 
                 self.environment.grid[self.y, self.x].occupant = self
@@ -126,10 +126,10 @@ class Agent:
 
 class ManhattanAgent(Agent):
 
-    def __init__(self, loop, env):
-        super().__init__(loop, env)
+    def __init__(self, env):
+        super().__init__(env)
 
-    async def automate(self):
+    def automate(self):
 
         if self.task:
             # +dY = Above
@@ -146,13 +146,13 @@ class ManhattanAgent(Agent):
 
             if not is_aligned_x:
                 if d_x > 0:
-                    await self.do_action(ActionSpace.LEFT)
+                    self.do_action(ActionSpace.LEFT)
                 else:
-                    await self.do_action(ActionSpace.RIGHT)
+                    self.do_action(ActionSpace.RIGHT)
             elif not is_aligned_y:
                 if d_y > 0:
-                    await self.do_action(ActionSpace.UP)
+                    self.do_action(ActionSpace.UP)
                 else:
-                    await self.do_action(ActionSpace.DOWN)
+                    self.do_action(ActionSpace.DOWN)
             #print("x=%s | y=%s | dX=%s | dY=%s | Thrust=%s | alignment_x=%s | alignment_y=%s" %
             #      (self.x, self.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))

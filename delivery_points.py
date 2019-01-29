@@ -9,9 +9,8 @@ import cell_types
 
 class DeliveryPointGenerator:
 
-    def __init__(self, loop, environment, seed=int(time.time()), frequency=0.009):
+    def __init__(self, environment, seed=int(time.time()), frequency=0.009):
         self.random = random.Random(seed)
-        self.loop = loop
         self.environment = environment
         self.frequency = frequency
         self.data = self.generate

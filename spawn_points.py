@@ -4,8 +4,7 @@ import cell_types
 
 class SpawnPoints:
 
-    def __init__(self, loop, environment, seed=None):
-        self.loop = loop
+    def __init__(self, environment, seed=None):
         self.environment = environment
         self.data = self.generate
 

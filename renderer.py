@@ -50,7 +50,7 @@ class HTTPRenderer:
         wc.shutdown()
         return response
 
-    async def blit(self, environment_state):
+    def blit(self, environment_state):
         self.data = environment_state
 
     async def generate_state(self):

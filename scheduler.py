@@ -2,7 +2,7 @@ import abc
 import asyncio
 import random
 import uuid
-from collections import deque, namedtuple
+from collections import namedtuple
 
 
 class Order:
@@ -45,8 +45,7 @@ class Order:
 
 class OrderGenerator:
 
-    def __init__(self, loop, environment, task_frequency=.05, task_init_size=10000):
-        self.loop = loop
+    def __init__(self, environment, task_frequency=.05, task_init_size=10000):
         self.environment = environment
         self.order_history = []
         self.queue = list()
@@ -77,10 +76,9 @@ class OrderGenerator:
 
 class Scheduler(abc.ABC):
 
-    def __init__(self, loop, environment):
-        self.loop = loop
+    def __init__(self, environment):
         self.environment = environment
-        self.generator = OrderGenerator(loop=loop, environment=environment)
+        self.generator = OrderGenerator(environment=environment)
 
     def give_task(self):
         raise NotImplemented("The give_task function must be implemented in an non abstract version. Example: "
