@@ -6,7 +6,7 @@ from collections import namedtuple
 
 
 class Order:
-    def __init__(self, order_y, order_x, depth, delivery_y, delivery_x):
+    def __init__(self, order_x, order_y, depth, delivery_x, delivery_y):
         self.id = str(uuid.uuid4())
         self.order_x = order_x
         self.order_y = order_y
@@ -18,7 +18,7 @@ class Order:
 
         self.depth = depth
         self.assignee = None
-        self.coords = namedtuple("Coordinates", ["y", "x"])
+        self.coords = namedtuple("Coordinates", ["x", "y"])
         self.order_coords = self.coords(x=order_x, y=order_y)
         self.delivery_coords = self.coords(x=delivery_x, y=delivery_y)
 
@@ -30,7 +30,7 @@ class Order:
 
     def at_location(self):
         coords = self.get_coordinates()
-        return self.assignee.x == coords.x and self.assignee.y == coords.y
+        return self.assignee.cell.x == coords.x and self.assignee.cell.y == coords.y
 
     def signal(self):
         if self.picked_up:
@@ -62,15 +62,14 @@ class OrderGenerator:
             await asyncio.sleep(self.task_frequency)
 
     async def add_task(self):
-        e_width = self.environment.w
-        e_height = self.environment.h
-        e_depth = self.environment.d
-        x = random.randint(0, e_width)
-        y = random.randint(0, e_height)
-        depth = random.randint(0, e_depth)
+
+        x = random.randint(0, self.environment.width)
+        y = random.randint(0, self.environment.height)
+        depth = random.randint(0, self.environment.depth)
+
         delivery_point = random.choice(self.environment.delivery_points.data)
 
-        order = Order(y, x, depth, delivery_point.y, delivery_point.x)
+        order = Order(x, y, depth, delivery_point.x, delivery_point.y)
         self.queue.append(order)
 
 

@@ -1,8 +1,9 @@
 import asyncio
-from multiprocessing import Process
+import ctypes
 from threading import Thread
 
 import renderer
+from action_space import ActionSpace
 from agent import ManhattanAgent
 from environment import Environment
 from scheduler import RandomScheduler
@@ -10,29 +11,30 @@ from scheduler import RandomScheduler
 
 if __name__ == "__main__":
 
-    r = renderer.HTTPRenderer(loop=asyncio.new_event_loop(), fps=30)
-    t = Thread(target=r._loop.run_forever)
-    t.daemon = True
-    t.start()
+    rt = renderer.HTTPRenderer(loop=asyncio.new_event_loop(), fps=30)
 
     env = Environment(
-        height=50,
-        width=50,
+        height=25,
+        width=25,
         depth=3,
-        agents=5,
+        agents=1,
         agent_class=ManhattanAgent,
-        renderer=r,
+        renderer=rt,
         tile_height=16,
         tile_width=16,
         scheduler=RandomScheduler
     )
 
-    agent = env.add_agent(ManhattanAgent)
+    rt.set_shared_state(*env.get_shared_state_pointer())
+    rt = Thread(target=rt._loop.run_forever)
+    rt.daemon = True
+    rt.start()
 
     while True:
         for agent in env.agents:
 
             agent.automate()
             env.update()
+            env.render()
 
-            r.blit(env.preprocess())
+            #r.blit(env.preprocess())

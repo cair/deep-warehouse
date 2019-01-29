@@ -1,28 +1,26 @@
 import asyncio
-from multiprocessing import Process
+from multiprocessing import Process, Array
 from threading import Thread
-
 import numpy as np
-import cv2
 import uvloop
-import cell_types
 from action_space import ActionSpace
 from agent import Agent
-from cell import Cell
 from delivery_points import DeliveryPointGenerator
+from graphics import Graphics
+from grid import Grid
 from scheduler import RandomScheduler
 from spawn_points import SpawnPoints
 
-
 class Environment(Process):
-    
+    """
+    Environment Class, Remember that Numpy Operates with arr[y, x]
+    """
     def __init__(self, height, width, depth, agents=1, agent_class=Agent, renderer=None, tile_height=32, tile_width=32,
                  scheduler=RandomScheduler):
         super().__init__()
-
-        self.w = width
-        self.h = height
-        self.d = depth
+        self.width = width
+        self.height = height
+        self.depth = depth
         self.action_space = ActionSpace
         self.renderer = renderer
 
@@ -30,7 +28,7 @@ class Environment(Process):
         self.loop = uvloop.new_event_loop()
 
         """The grid is the global internal state of all cells in the environment."""
-        self.grid = self.init_grid()
+        self.grid = Grid(width=width, height=height)
 
         """Spawn-points is the location where agent can spawn."""
         self.spawn_points = SpawnPoints(self, seed=123)
@@ -48,10 +46,8 @@ class Environment(Process):
         self.agent = None
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
-        self.gui_components = GUIComponents(self, height=tile_height, width=tile_width)
-
-        """Validate the setup."""
-        self.ensure_grid_consistency()
+        self.graphics = Graphics(environment=self,
+                                 game_width=self.width, game_height=self.height, cell_width=32, cell_height=32)
 
         """Setup tasks."""
         self.loop.create_task(self.deploy_agents())
@@ -60,48 +56,10 @@ class Environment(Process):
         task_thread = Thread(target=self.loop.run_forever)
         task_thread.start()
 
-
-
-
     def add_agent(self, agent_cls):
         idx = len(self.agents)
         self.agents.append(agent_cls(self))
         return self.agents[idx]
-
-    def init_grid(self):
-        """Create grid data information"""
-        grid = np.ndarray(shape=(self.h, self.w), dtype=np.object)
-        for (a, b), index in np.ndenumerate(grid):
-            grid[a, b] = Cell(y=a, x=b)
-
-        return grid
-
-    def ensure_grid_consistency(self):
-        """
-        Ensures that the grid has a type set for all cells.
-        :return:
-        """
-
-        n_counts = {
-            cell_types.DeliveryPoint: len(self.delivery_points.data),
-            cell_types.SpawnPoint: len(self.spawn_points.data),
-            cell_types.EmptyPoint: (self.h * self.w) - len(self.delivery_points.data) - len(self.spawn_points.data)
-        }
-
-        counts = {
-            cell_types.DeliveryPoint: 0,
-            cell_types.SpawnPoint: 0,
-            cell_types.EmptyPoint: 0
-        }
-
-        for (a, b), index in np.ndenumerate(self.grid):
-            cell = self.grid[a, b]
-            assert cell.type
-
-            counts[cell.type] += 1
-
-        #for k, v in n_counts.items():
-        #    assert v == counts[k] # TODO reimplement
 
     def set_agent(self, agent):
         """
@@ -118,7 +76,15 @@ class Environment(Process):
         for agent in self.agents:
             agent.update()
 
+    def render(self):
+        for agent in self.agents:
+            self.graphics.draw_agent(agent)
+            if agent.task:
+                self.graphics.draw_pickup_point(agent.task.order_x, agent.task.order_y)
+                self.graphics.draw_delivery_point(agent.task.delivery_x, agent.task.delivery_y)
+
     async def deploy_agents(self):
+
         """
         Deploy agent if there are any in the queue.
         :return:
@@ -153,120 +119,5 @@ class Environment(Process):
                 agent.task.assignee = agent
             await asyncio.sleep(.2)
 
-    def preprocess(self):
-        _canvas = self.gui_components.get_canvas()
-        for agent in self.agents:
-            if not agent.x or not agent.y:
-                continue
-
-            if agent.task:
-                """Draw task location."""
-                order_x_start = agent.task.order_x * self.gui_components.width
-                order_x_end = order_x_start + self.gui_components.width
-                order_y_start = agent.task.order_y * self.gui_components.height
-                order_y_end = order_y_start + self.gui_components.height
-
-                delivery_x_start = agent.task.delivery_x * self.gui_components.width
-                delivery_x_end = delivery_x_start + self.gui_components.width
-                delivery_y_start = agent.task.delivery_y * self.gui_components.height
-                delivery_y_end = delivery_y_start + self.gui_components.height
-
-                if not agent.task.picked_up:
-                    _canvas[order_y_start:order_y_end, order_x_start:order_x_end] = cell_types.Order.COLOR_0
-                if not agent.task.done:
-                    _canvas[delivery_y_start:delivery_y_end, delivery_x_start:delivery_x_end] = cell_types.Colors.BLACK
-
-            x = agent.x
-            y = agent.y
-            img_x_start = x * self.gui_components.width
-            img_x_end = img_x_start + self.gui_components.width
-            img_y_start = y * self.gui_components.height
-            img_y_end = img_y_start + self.gui_components.height
-
-            _canvas[img_y_start:img_y_end, img_x_start:img_x_end] = self.gui_components.generate_agent(agent)
-
-        return _canvas
-    
-    
-class GUIComponents:
-
-    def __init__(self, environment, depth=5, width=32, height=32):
-        self.width = width
-        self.height = height
-        self.depth = depth
-        self.gw = environment.w
-        self.gh = environment.h
-        self.environment = environment
-
-        self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.cell = self.define_cell()
-        self.agent = {
-            Agent.IDLE: self.define_agent(cell_types.AgentIdle.COLOR),
-            Agent.MOVING_FULL: self.define_agent(cell_types.AgentMovingFull.COLOR),
-            Agent.MOVING_EMPTY: self.define_agent(cell_types.AgentMovingEmpty.COLOR),
-            Agent.DIGGING: self.define_agent(cell_types.AgentDigging.COLOR)
-        }
-
-        self._canvas = self.init_canvas()
-
-    def define_agent(self, color):
-        box = np.zeros(shape=(self.height, self.width, 3))
-        box[:, :] = color
-        return box
-
-    def init_canvas(self):
-        empty_grid = np.ones(shape=(self.gh * self.height, self.gw * self.width, 3))
-        empty_grid.fill(255)
-
-        """ Draw Grid"""
-        for gy in range(self.gh):
-            for gx in range(self.gw):
-                """Convert gy, and gx to pixels in the canvas."""
-                x_start = gx * self.width
-                x_end = x_start + self.width
-                y_start = gy * self.height
-                y_end = y_start + self.height
-
-                empty_grid[y_start:y_end, x_start:x_end] = self.cell
-
-        for points in [self.environment.delivery_points.data, self.environment.spawn_points.data]:
-
-            """Setup Cell Color."""
-            cell = np.array(self.cell, copy=True)
-            cell[1:len(cell[0])-1, 1:len(cell[1])-1] = points[0].type.COLOR  # TODO may be heavy
-
-            for point in points:
-                """Iterate over all points in the specific group."""
-
-                y_start = point.y * self.height
-                y_end = y_start + self.height
-                x_start = point.x * self.width
-                x_end = x_start + self.width
-
-                empty_grid[y_start:y_end, x_start:x_end] = cell
-
-        return empty_grid
-
-    def get_canvas(self):
-        return np.array(self._canvas, copy=True)
-
-    def generate_agent(self, agent):
-        _agent = np.array(self.agent[agent.state], copy=True)
-        cv2.putText(_agent, str(agent.id), (0, 0), self.font, 6, cell_types.Colors.BLACK, 2, cv2.LINE_AA)
-        return _agent
-
-    def define_cell(self):
-        """Cell image definition."""
-        border_width = 1
-        c = np.ones(shape=(self.height - (border_width * 2), self.width - (border_width * 2), 3))
-        c *= 255
-        c = cv2.copyMakeBorder(
-            c,
-            border_width,
-            border_width,
-            border_width,
-            border_width,
-            cv2.BORDER_CONSTANT,
-            value=(0, 0, 0)  # Black border
-        )
-        return c
+    def get_shared_state_pointer(self):
+        return self.graphics._shared_pointer, self.graphics._shared_pointer_dimensions

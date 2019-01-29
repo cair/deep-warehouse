@@ -8,11 +8,12 @@ from aiohttp.web_runner import AppRunner, TCPSite
 class HTTPRenderer:
 
     def __init__(self, fps=30, loop=None):
+        self.shared_state = None
+        self.shared_dimensions = None
         self.encoding = (int(cv2.IMWRITE_JPEG_QUALITY), 90)
         self.fps = fps
         self.fps_wait = 1 / self.fps
         self._loop = loop if loop else asyncio.get_event_loop()
-        self.data = np.zeros(shape=(800, 800, 3))
 
         loop.create_task(self.run_server())
 
@@ -50,14 +51,15 @@ class HTTPRenderer:
         wc.shutdown()
         return response
 
-    def blit(self, environment_state):
-        self.data = environment_state
-
     async def generate_state(self):
-        result, encimg = cv2.imencode('.jpg', self.data, self.encoding)
+        self.shared_state = np.frombuffer(self._shared_data.get_obj()).reshape(self._shared_dimensions.get_obj())
+        result, encimg = cv2.imencode('.jpg', self.shared_state, self.encoding)
         data = encimg.tostring()
         return data
 
+    def set_shared_state(self, shared_data, shared_dimensions):
+        self._shared_data = shared_data
+        self._shared_dimensions = shared_dimensions
 
 
 

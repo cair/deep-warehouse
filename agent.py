@@ -2,6 +2,7 @@ import random
 
 from action_space import ActionSpace
 from cell import Cell
+from grid import Grid
 
 
 class Agent:
@@ -24,8 +25,7 @@ class Agent:
     def __init__(self, env):
         self.environment = env
         self.id = Agent.new_id()
-        self.x = None
-        self.y = None
+        self.cell = None
         self.speed = 0
 
         self.task = None
@@ -48,13 +48,11 @@ class Agent:
 
     def spawn(self, spawn_point):
         spawn_point.occupant = self
-        self.x = spawn_point.x
-        self.y = spawn_point.y
+        self.cell = spawn_point
+
         self.state = Agent.IDLE
 
     def despawn(self):
-        self.x = None
-        self.y = None
         self.state = Agent.INACTIVE
         self.action = None
         self.action_intensity = 0
@@ -90,33 +88,20 @@ class Agent:
             if self.action_progress >= 1:
                 self.action_progress -= 1  # TODO, may break in some cases?
 
-                """Unset from current cell"""
-                current_cell = self.environment.grid[self.y, self.x]
-                assert current_cell.occupant == self
-                current_cell.occupant = None
+                """Determine which direction the agent should move."""
+                x, y = ActionSpace.DIRECTIONS[self.action]
 
-                """Update location"""
-                if self.action is ActionSpace.LEFT:
-                    self.x -= 1  # TODO some punishmnent signal when x < 0! PANG!
-                elif self.action is ActionSpace.RIGHT:
-                    self.x += 1
-                elif self.action is ActionSpace.UP:
-                    self.y -= 1
-                elif self.action is ActionSpace.DOWN:
-                    self.y += 1
 
-                """Set to new cell"""
-                if self.y < 0 or self.x < 0 or self.y >= self.environment.h or self.x >= self.environment.w:
+                return_code = self.environment.grid.move_relative(self, x, y)
+
+                if return_code == Grid.MOVE_WALL_COLLISION:
                     self.crash()
                     return
 
-                self.environment.grid[self.y, self.x].occupant = self
-
-
-                """Decay intensity"""
-                self.action_intensity = max(0, self.action_intensity * self.action_decay_factor)
-                if self.action_intensity == 0:
-                    self.action = None
+                elif return_code == Grid.MOVE_AGENT_COLLISION:
+                    # TODO additional handling for other agent
+                    self.crash()
+                    return
 
         """Evaluate task objective."""
         if self.task:
@@ -138,8 +123,8 @@ class ManhattanAgent(Agent):
             # -dX = Left Of
             task_coords = self.task.get_coordinates()
 
-            d_x = self.x - task_coords.x
-            d_y = self.y - task_coords.y
+            d_x = self.cell.x - task_coords.x
+            d_y = self.cell.y - task_coords.y
 
             is_aligned_x = d_x == 0
             is_aligned_y = d_y == 0
@@ -155,4 +140,4 @@ class ManhattanAgent(Agent):
                 else:
                     self.do_action(ActionSpace.DOWN)
             #print("x=%s | y=%s | dX=%s | dY=%s | Thrust=%s | alignment_x=%s | alignment_y=%s" %
-            #      (self.x, self.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))
+            #      (self.cell.x, self.cell.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))
