@@ -11,3 +11,4 @@ pip install perara-logistics-sim
 
 ### Constrains and Assumptions
 * The agent cannot select direction actions unless standing still
+* Assumes the grid to have quadratic cells.
