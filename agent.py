@@ -50,8 +50,7 @@ class Agent:
         """Ensure consistency between grid and agent."""
         if not self._cell:
             return None
-        if not (self._cell.occupant == self or self._cell.occupant is None):
-            print(self._cell.occupant, self)
+
         assert self._cell.occupant == self or self._cell.occupant is None
         return self._cell
 
@@ -116,11 +115,11 @@ class Agent:
         return_code = self.environment.grid.move_relative(self, x, y)
 
         if return_code == Grid.MOVE_WALL_COLLISION:
-            print("Wall crash")
+            #print("Wall crash")
             self.crash()
         elif return_code == Grid.MOVE_AGENT_COLLISION:
             # TODO additional handling for other agent
-            print("Agent Crash")
+            #print("Agent Crash")
             self.crash()
 
         """Decay acceleration / Thrust."""

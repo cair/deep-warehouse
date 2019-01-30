@@ -7,7 +7,7 @@ import uvloop
 from action_space import ActionSpace
 from agent import Agent
 from delivery_points import DeliveryPointGenerator
-from graphics import Graphics
+from graphics import Graphics, PygameGraphics
 from grid import Grid
 from scheduler import RandomScheduler
 from spawn_points import SpawnPoints
@@ -55,6 +55,7 @@ class Environment(Process):
         self.task_assignment_interval = task_assign_interval
 
         """Task creation interval in game-seconds"""
+        self.task_generate_interval = task_generate_interval  # TODO use this?
 
         """The grid is the global internal state of all cells in the environment."""
         self.grid = Grid(width=width, height=height)
@@ -75,7 +76,7 @@ class Environment(Process):
         self.agent = None
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
-        self.graphics = Graphics(environment=self,
+        self.graphics = PygameGraphics(environment=self,
                                  game_width=self.width,
                                  game_height=self.height,
                                  cell_width=tile_width,

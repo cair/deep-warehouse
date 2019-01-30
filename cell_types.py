@@ -2,7 +2,7 @@
 
 
 class EmptyPoint:
-    COLOR = (0, 0, 0)
+    COLOR = (255, 255, 255)
 
 
 class Order:
@@ -12,6 +12,10 @@ class Order:
 
 class DeliveryPoint:
     COLOR = (0, 0, 255)
+
+
+class PickupPoint:
+    COLOR = (255, 0, 0)
 
 
 class AgentIdle:

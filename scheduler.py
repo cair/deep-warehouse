@@ -34,12 +34,10 @@ class Order:
 
     def signal(self):
         if self.picked_up:
-            print("Done")
             self.done = True
             self.assignee.task = None
             self.assignee = None
         else:
-            print("Pickup")
             self.picked_up = True
 
 
@@ -62,7 +60,7 @@ class OrderGenerator:
 
     def add_task(self):
         x = random.randint(0, self.environment.width - 1)
-        y = random.randint(0, self.environment.height - 1)
+        y = random.randint(2, self.environment.height - 1)
         depth = random.randint(0, self.environment.depth)
 
         delivery_point = random.choice(self.environment.delivery_points.data)

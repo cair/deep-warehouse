@@ -12,8 +12,9 @@ class Grid:
         self.grid = np.ndarray(shape=(height, width), dtype=np.object)
         self.width = width
         self.height = height
+        self.cb_on_cell_change = []
         for (y, x), index in np.ndenumerate(self.grid):
-                self.grid[y, x] = Cell(x=x, y=y)
+                self.grid[y, x] = Cell(self, x=x, y=y)
 
     def cell(self, x, y):
         return self.grid[y, x]
