@@ -1,4 +1,5 @@
 import asyncio
+import time
 from multiprocessing import Process, Array
 from threading import Thread
 import numpy as np
@@ -11,12 +12,26 @@ from grid import Grid
 from scheduler import RandomScheduler
 from spawn_points import SpawnPoints
 
+
 class Environment(Process):
     """
     Environment Class, Remember that Numpy Operates with arr[y, x]
     """
-    def __init__(self, height, width, depth, agents=1, agent_class=Agent, renderer=None, tile_height=32, tile_width=32,
-                 scheduler=RandomScheduler):
+    def __init__(self,
+                 height,
+                 width,
+                 depth,
+                 agents=1,
+                 agent_class=Agent,
+                 renderer=None,
+                 tile_height=32,
+                 tile_width=32,
+                 ups=None,
+                 scheduler=RandomScheduler,
+                 ticks_per_second=10,
+                 spawn_interval=1,
+                 task_generate_interval=5,
+                 task_assign_interval=1):
         super().__init__()
         self.width = width
         self.height = height
@@ -24,8 +39,22 @@ class Environment(Process):
         self.action_space = ActionSpace
         self.renderer = renderer
 
-        """Internal asyncio loop."""
-        self.loop = uvloop.new_event_loop()
+        """Updates per second."""
+        self.ups = ups
+        self.ups_interval = 0 if self.ups is None else 1.0 / self.ups
+
+        """Ticks per second."""
+        self.tick_ps = ticks_per_second
+        self.tick_ps_ratio = 1 / self.tick_ps
+        self.tick_ps_counter = 0
+
+        """Spawn interval in game-seconds."""
+        self.spawn_interval = spawn_interval
+
+        """Task assignment interval in game-seconds."""
+        self.task_assignment_interval = task_assign_interval
+
+        """Task creation interval in game-seconds"""
 
         """The grid is the global internal state of all cells in the environment."""
         self.grid = Grid(width=width, height=height)
@@ -47,14 +76,11 @@ class Environment(Process):
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = Graphics(environment=self,
-                                 game_width=self.width, game_height=self.height, cell_width=32, cell_height=32)
-
-        """Setup tasks."""
-        self.loop.create_task(self.deploy_agents())
-        self.loop.create_task(self.scheduler.generator.generate())
-        self.loop.create_task(self.task_assignment())
-        task_thread = Thread(target=self.loop.run_forever)
-        task_thread.start()
+                                 game_width=self.width,
+                                 game_height=self.height,
+                                 cell_width=tile_width,
+                                 cell_height=tile_height
+                                 )
 
     def add_agent(self, agent_cls):
         idx = len(self.agents)
@@ -72,18 +98,43 @@ class Environment(Process):
     def step(self, action):
         self.agent.do_action(action=action)
 
+    def get_seconds(self):
+        return self.tick_ps_counter * self.tick_ps_ratio
+
     def update(self):
+        self.tick_ps_counter += 1
+
         for agent in self.agents:
             agent.update()
+            """Evaluate task objective."""
+            if agent.task:
+                if agent.task.at_location():
+                    agent.task.signal()
+
+        seconds = self.get_seconds()
+        if seconds % self.spawn_interval == 0:
+            self.deploy_agents()
+
+        if seconds % self.task_assignment_interval == 0:
+            self.task_assignment()
+
+        if seconds % self.task_assignment_interval == 0:
+            self.scheduler.generator.generate(init=False)
+
+        if self.ups:
+            time.sleep(self.ups_interval)
 
     def render(self):
+        self.graphics.reset()
         for agent in self.agents:
             self.graphics.draw_agent(agent)
             if agent.task:
                 self.graphics.draw_pickup_point(agent.task.order_x, agent.task.order_y)
                 self.graphics.draw_delivery_point(agent.task.delivery_x, agent.task.delivery_y)
 
-    async def deploy_agents(self):
+        self.graphics.blit()
+
+    def deploy_agents(self):
 
         """
         Deploy agent if there are any in the queue.
@@ -92,7 +143,6 @@ class Environment(Process):
         for agent in self.agents:
             if agent.state != Agent.INACTIVE:
                 continue
-
             spawn_points = self.spawn_points.get_available()
             if len(spawn_points) == 0:
                 """No available spawn points. """
@@ -100,24 +150,17 @@ class Environment(Process):
 
             spawn_point = np.random.choice(spawn_points)
             agent.spawn(spawn_point)
-            await asyncio.sleep(1)
 
-    async def task_assignment(self):
+    def task_assignment(self):
         """
         Task Assignment is a coroutine which hand_out tasks to free agents. The scheduler can be implemented using various algorithms.
         :return:
         """
+        for agent in self.agents:
+            if agent.task or agent.state == Agent.INACTIVE:
+                """Agent already as a task assigned."""
 
-        while True:
+                continue
+            self.scheduler.give_task(agent)  # TODO - SJEKK ATTRIBUTE ERROR
 
-            for agent in self.agents:
-                if agent.task or agent.state == Agent.INACTIVE:
-                    """Agent already as a task assigned."""
-                    continue
 
-                agent.task = self.scheduler.give_task()
-                agent.task.assignee = agent
-            await asyncio.sleep(.2)
-
-    def get_shared_state_pointer(self):
-        return self.graphics._shared_pointer, self.graphics._shared_pointer_dimensions

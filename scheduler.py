@@ -45,26 +45,24 @@ class Order:
 
 class OrderGenerator:
 
-    def __init__(self, environment, task_frequency=.05, task_init_size=10000):
+    def __init__(self, environment, task_frequency=.05, task_init_size=1000):
         self.environment = environment
         self.order_history = []
         self.queue = list()
         self.task_frequency = task_frequency
         self.task_init_size = task_init_size
+        self.generate(init=True)
 
-    async def generate(self):
+    def generate(self, init=False):
+        if init:
+            for _ in range(self.task_init_size):
+                self.add_task()
 
-        for _ in range(self.task_init_size):
-            await self.add_task()
+        self.add_task()
 
-        while True:
-            await self.add_task()
-            await asyncio.sleep(self.task_frequency)
-
-    async def add_task(self):
-
-        x = random.randint(0, self.environment.width)
-        y = random.randint(0, self.environment.height)
+    def add_task(self):
+        x = random.randint(0, self.environment.width - 1)
+        y = random.randint(0, self.environment.height - 1)
         depth = random.randint(0, self.environment.depth)
 
         delivery_point = random.choice(self.environment.delivery_points.data)
@@ -79,17 +77,23 @@ class Scheduler(abc.ABC):
         self.environment = environment
         self.generator = OrderGenerator(environment=environment)
 
-    def give_task(self):
+    def give_task(self, agent):
         raise NotImplemented("The give_task function must be implemented in an non abstract version. Example: "
                              "RandomScheduler or DistanceScheduler")
 
 
 class RandomScheduler(Scheduler):
 
-    def give_task(self):
+    def give_task(self, agent):
         if len(self.generator.queue) == 0:
             return None
-        pop_at = random.randint(0, len(self.generator.queue) - 1)
-        return self.generator.queue.pop(pop_at)
 
+        pop_at = random.randint(0, len(self.generator.queue) - 1)
+        task = self.generator.queue.pop(pop_at)
+
+        if not task:
+            """No available task."""
+            return
+        agent.task = task
+        agent.task.assignee = agent
 

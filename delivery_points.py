@@ -26,7 +26,7 @@ class DeliveryPointGenerator:
 
         possible_xs = np.arange(self.environment.width)
 
-        for y in range(1, self.environment.height):
+        for y in np.arange(self.environment.height):
 
             selected_xs = list(self.roll(possible_xs, self.frequency))
 

@@ -19,21 +19,23 @@ class Grid:
         return self.grid[y, x]
 
     def move_relative(self, agent, x, y):
-        self.move(agent, agent.cell.x + x, agent.cell.y + y)
+        return self.move(agent, agent.cell.x + x, agent.cell.y + y)
 
     def move(self, agent, x, y):
+
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            return Grid.MOVE_WALL_COLLISION
+
         cell = self.grid[y, x]
 
-        if cell.occupant:
+        if cell.occupant and cell.occupant != agent:
             return Grid.MOVE_AGENT_COLLISION
-        elif x < 0 or x >= self.width or y < 0 or self.height >= self.height:
-            return Grid.MOVE_WALL_COLLISION
         else:
+            if agent.cell:
+                agent.cell.occupant = None
             cell.occupant = agent
             agent.cell = cell
             return Grid.MOVE_OK
-
-
 
     def has_occupant(self,x, y):
         return self.grid[y, x].occupant

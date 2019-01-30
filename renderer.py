@@ -1,21 +1,36 @@
 import asyncio
+from multiprocessing import Process
+
 from aiohttp import web
 import cv2
 import numpy as np
 from aiohttp.web_runner import AppRunner, TCPSite
+import SharedArray as sa
+import uvloop
 
+class HTTPRenderer(Process):
 
-class HTTPRenderer:
-
-    def __init__(self, fps=30, loop=None):
-        self.shared_state = None
-        self.shared_dimensions = None
+    def __init__(self, fps=30):
+        super().__init__()
+        self.data = None
         self.encoding = (int(cv2.IMWRITE_JPEG_QUALITY), 90)
         self.fps = fps
         self.fps_wait = 1 / self.fps
-        self._loop = loop if loop else asyncio.get_event_loop()
+        self._loop = None
 
-        loop.create_task(self.run_server())
+    def run(self):
+        self._loop = uvloop.new_event_loop()
+        self._loop.create_task(self.run_server())
+        #self._loop.create_task(self.get_data_pointer())
+        self._loop.run_forever()
+
+    async def get_data_pointer(self):
+        while self.data is None:
+            try:
+                self.data = sa.attach("shm://env_state")  # FileNotFoundError TODO
+            except FileNotFoundError as e:
+                pass
+            await asyncio.sleep(1)
 
     async def run_server(self):
         app = web.Application()
@@ -36,6 +51,9 @@ class HTTPRenderer:
         await response.prepare(request)
 
         while True:
+
+            if self.data is None:
+                await self.get_data_pointer()
             data = await self.generate_state()
 
             await response.write(
@@ -52,14 +70,14 @@ class HTTPRenderer:
         return response
 
     async def generate_state(self):
-        self.shared_state = np.frombuffer(self._shared_data.get_obj()).reshape(self._shared_dimensions.get_obj())
-        result, encimg = cv2.imencode('.jpg', self.shared_state, self.encoding)
+        state = self.data
+        if state is None:
+            return None
+
+        result, encimg = cv2.imencode('.jpg', state, self.encoding)
         data = encimg.tostring()
         return data
 
-    def set_shared_state(self, shared_data, shared_dimensions):
-        self._shared_data = shared_data
-        self._shared_dimensions = shared_dimensions
 
 
 
