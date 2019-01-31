@@ -1,20 +1,36 @@
 import asyncio
+from multiprocessing import Process
+
 from aiohttp import web
 import cv2
 import numpy as np
 from aiohttp.web_runner import AppRunner, TCPSite
+import SharedArray as sa
+import uvloop
 
+class HTTPRenderer(Process):
 
-class HTTPRenderer:
-
-    def __init__(self, fps=30, loop=None):
+    def __init__(self, fps=30):
+        super().__init__()
+        self.data = None
         self.encoding = (int(cv2.IMWRITE_JPEG_QUALITY), 90)
         self.fps = fps
         self.fps_wait = 1 / self.fps
-        self._loop = loop if loop else asyncio.get_event_loop()
-        self.data = np.zeros(shape=(800, 800, 3))
+        self._loop = None
 
-        loop.create_task(self.run_server())
+    def run(self):
+        self._loop = uvloop.new_event_loop()
+        self._loop.create_task(self.run_server())
+        #self._loop.create_task(self.get_data_pointer())
+        self._loop.run_forever()
+
+    async def get_data_pointer(self):
+        while self.data is None:
+            try:
+                self.data = sa.attach("shm://env_state")  # FileNotFoundError TODO
+            except FileNotFoundError as e:
+                pass
+            await asyncio.sleep(1)
 
     async def run_server(self):
         app = web.Application()
@@ -35,6 +51,9 @@ class HTTPRenderer:
         await response.prepare(request)
 
         while True:
+
+            if self.data is None:
+                await self.get_data_pointer()
             data = await self.generate_state()
 
             await response.write(
@@ -50,11 +69,12 @@ class HTTPRenderer:
         wc.shutdown()
         return response
 
-    async def blit(self, environment_state):
-        self.data = environment_state
-
     async def generate_state(self):
-        result, encimg = cv2.imencode('.jpg', self.data, self.encoding)
+        state = self.data
+        if state is None:
+            return None
+
+        result, encimg = cv2.imencode('.jpg', state, self.encoding)
         data = encimg.tostring()
         return data
 

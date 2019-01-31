@@ -2,97 +2,146 @@ import abc
 import asyncio
 import random
 import uuid
-from collections import deque, namedtuple
+from collections import namedtuple
+
+import cell_types
+from agent import Agent
 
 
 class Order:
-    def __init__(self, order_y, order_x, depth, delivery_y, delivery_x):
+    Coordinate = namedtuple("Coordinate", ["x", "y", "z"])
+
+    def __init__(self, environment, order_x, order_y, depth, delivery_x, delivery_y):
         self.id = str(uuid.uuid4())
-        self.order_x = order_x
-        self.order_y = order_y
-        self.delivery_x = delivery_x
-        self.delivery_y = delivery_y
+        self.environment = environment
 
-        self.picked_up = False
-        self.done = False
+        self.agent = None
 
-        self.depth = depth
-        self.assignee = None
-        self.coords = namedtuple("Coordinates", ["y", "x"])
-        self.order_coords = self.coords(x=order_x, y=order_y)
-        self.delivery_coords = self.coords(x=delivery_x, y=delivery_y)
+        self.x_0 = order_x
+        self.y_0 = order_y
+        self.z_0 = depth
+
+        self.x_1 = delivery_x
+        self.y_1 = delivery_y
+        self.z_1 = 0
+
+        self.has_picked_up = False
+        self.has_finished = False
+        self.has_started = False
+
+        self.c_0 = Order.Coordinate(x=self.x_0, y=self.y_0, z=self.z_0)
+        self.c_1 = Order.Coordinate(x=self.x_1, y=self.y_1, z=self.z_1)
 
     def get_coordinates(self):
-        if self.picked_up:
-            return self.delivery_coords
+        return self.c_1 if self.has_picked_up else self.c_0
 
-        return self.order_coords
+    def start(self):
+        self.has_started = True
+
+        """Set Target cell to pickup and destination to delivery"""
+        cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+        cell_0.order_type = cell_types.OrderPickup
+        cell_0.update_type()
+        cell_0.trigger_callback()
+
+        cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+        cell_1.order_type = cell_types.OrderDeliveryActive
+        cell_1.update_type()
+        cell_1.trigger_callback()
+
+    def abort(self):
+        self.has_started = False
+        self.environment.scheduler.generator.queue.append(self)
+        self.agent = None
+
+        """Set Target cell to pickup and destination to delivery"""
+        cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+        cell_0.update_type(reset=True)
+        cell_0.trigger_callback()
+
+        cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+        cell_1.update_type(reset=True)
+        cell_1.trigger_callback()
 
     def at_location(self):
         coords = self.get_coordinates()
-        return self.assignee.x == coords.x and self.assignee.y == coords.y
+        return self.agent.cell.x == coords.x and self.agent.cell.y == coords.y
 
-    def signal(self):
-        if self.picked_up:
-            print("Done")
-            self.done = True
-            self.assignee.task = None
-            self.assignee = None
+    def evaluate(self):
+        assert self.has_started
+
+        if not self.at_location():
+            return
+
+        if self.has_picked_up:
+            self.has_finished = True
+            self.agent.task = None
+            self.agent.state = Agent.DELIVERY
+            self.agent = None
+
+            cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+            cell_1.update_type(reset=True)
+            cell_1.trigger_callback()
+
+
         else:
-            print("Pickup")
-            self.picked_up = True
-
+            self.has_picked_up = True
+            cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+            cell_0.update_type(reset=True)
+            cell_0.trigger_callback()
+            self.agent.state = Agent.PICKUP
 
 class OrderGenerator:
 
-    def __init__(self, loop, environment, task_frequency=.05, task_init_size=10000):
-        self.loop = loop
+    def __init__(self, environment, task_frequency=.05, task_init_size=1000):
         self.environment = environment
         self.order_history = []
         self.queue = list()
         self.task_frequency = task_frequency
         self.task_init_size = task_init_size
+        self.generate(init=True)
 
-    async def generate(self):
+    def generate(self, init=False):
+        if init:
+            for _ in range(self.task_init_size):
+                self.add_task()
 
-        for _ in range(self.task_init_size):
-            await self.add_task()
+        self.add_task()
 
-        while True:
-            await self.add_task()
-            await asyncio.sleep(self.task_frequency)
+    def add_task(self):
+        x = random.randint(0, self.environment.width - 1)
+        y = random.randint(2, self.environment.height - 1)
+        depth = random.randint(0, self.environment.depth)
 
-    async def add_task(self):
-        e_width = self.environment.w
-        e_height = self.environment.h
-        e_depth = self.environment.d
-        x = random.randint(0, e_width)
-        y = random.randint(0, e_height)
-        depth = random.randint(0, e_depth)
         delivery_point = random.choice(self.environment.delivery_points.data)
 
-        order = Order(y, x, depth, delivery_point.y, delivery_point.x)
+        order = Order(self.environment, x, y, depth, delivery_point.x, delivery_point.y)
         self.queue.append(order)
 
 
 class Scheduler(abc.ABC):
 
-    def __init__(self, loop, environment):
-        self.loop = loop
+    def __init__(self, environment):
         self.environment = environment
-        self.generator = OrderGenerator(loop=loop, environment=environment)
+        self.generator = OrderGenerator(environment=environment)
 
-    def give_task(self):
+    def give_task(self, agent):
         raise NotImplemented("The give_task function must be implemented in an non abstract version. Example: "
                              "RandomScheduler or DistanceScheduler")
 
 
 class RandomScheduler(Scheduler):
 
-    def give_task(self):
+    def give_task(self, agent):
         if len(self.generator.queue) == 0:
             return None
+
         pop_at = random.randint(0, len(self.generator.queue) - 1)
-        return self.generator.queue.pop(pop_at)
+        task = self.generator.queue.pop(pop_at)
 
-
+        if not task:
+            """No available task."""
+            return
+        agent.task = task
+        agent.task.agent = agent
+        task.start()

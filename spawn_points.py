@@ -4,20 +4,21 @@ import cell_types
 
 class SpawnPoints:
 
-    def __init__(self, loop, environment, seed=None):
-        self.loop = loop
+    def __init__(self, environment, seed=None):
         self.environment = environment
         self.data = self.generate
 
     @property
     def generate(self):
-        rows = [0, 1]
-        cols = [x for x in range(self.environment.w)]
+        width = [x for x in range(self.environment.width)]
+        height = [0, 1]
+
         data = []
-        for row in rows:
-            for col in cols:
-                cell = self.environment.grid[row, col]
+        for y in height:
+            for x in width:
+                cell = self.environment.grid.cell(x, y)
                 cell.type = cell_types.SpawnPoint
+                cell.original_type = cell_types.SpawnPoint
                 data.append(cell)
 
         return data

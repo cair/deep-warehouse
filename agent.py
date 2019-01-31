@@ -1,18 +1,24 @@
-import random
-
+import numpy as np
 from action_space import ActionSpace
+from grid import Grid
 
 
 class Agent:
     id = 0
 
     MAX_SPEED = 750  # X centimeters per second is max speed
+    MAX_THRUST = 2
 
     IDLE = 0
-    MOVING_EMPTY = 1
-    MOVING_FULL = 2
-    DIGGING = 3
-    INACTIVE = 4
+    MOVING = 1
+    PICKUP = 2
+    DELIVERY = 3
+    DESTROYED = 4
+    INACTIVE = 5
+
+    ALL_STATES = [IDLE, MOVING, PICKUP, DELIVERY, DESTROYED, INACTIVE]
+
+    IMMOBILE_STATES = [DESTROYED, INACTIVE]
 
     @staticmethod
     def new_id():
@@ -20,23 +26,20 @@ class Agent:
         Agent.id += 1
         return _id
 
-    def __init__(self, loop, env):
+    def __init__(self, env):
         self.environment = env
         self.id = Agent.new_id()
-        self._loop = loop
-        self.x = None
-        self.y = None
+        self._cell = None
         self.speed = 0
 
         self.task = None
 
         self.state = Agent.INACTIVE  # TODO
-        self.victory = False
 
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
-        self.action_decay_factor = 0
+        self.action_decay_factor = 3
 
         self.action_steps = {
             ActionSpace.LEFT: 5,  # Number of ticks (Delay) to perform Action.Left
@@ -46,91 +49,120 @@ class Agent:
 
         }
 
+    @property
+    def cell(self):
+        """Ensure consistency between grid and agent."""
+        if not self._cell:
+            return None
+
+        assert self._cell.occupant == self or self._cell.occupant is None
+        return self._cell
+
+    @cell.setter
+    def cell(self, x):
+
+        _cell = self.cell
+        if _cell:
+            _cell.occupant = None
+
+        self._cell = x
+
     def spawn(self, spawn_point):
-        spawn_point.occupant = self
-        self.x = spawn_point.x
-        self.y = spawn_point.y
+        result = self.environment.grid.move(self, spawn_point.x, spawn_point.y)
+        assert result == Grid.MOVE_OK
         self.state = Agent.IDLE
 
     def despawn(self):
-        self.x = None
-        self.y = None
+        self.reset_action()
+        self.cell = None
         self.state = Agent.INACTIVE
+
+    def crash(self):
+
+        if self.task:
+            self.task.abort()
+            self.task = None
+
+        self.state = Agent.DESTROYED
+        self.reset_action()
+        self.cell = None
+
+    def reset_action(self):
         self.action = None
         self.action_intensity = 0
 
-    async def crash(self):
-        if self.task:
-            self.environment.scheduler.generator.queue.append(self.task)
-            self.task.assignee = None
-            self.task = None
-        self.victory = False
-        self.despawn()
-
-    async def automate(self):
+    def automate(self):
         return None
 
-    async def do_action(self, action):
-        if self.action is None or self.action != action:
+    def do_action(self, action):
+        if self.state in Agent.IMMOBILE_STATES:
+            return
+
+        if action < 0 or action >= ActionSpace.N_ACTIONS:
+            raise ValueError("The inserted action is out of action_space bounds 0 => %s." % ActionSpace.N_ACTIONS)
+
+        """Ensure that action is Integer"""
+        action = int(action)
+
+        if action is ActionSpace.NOOP:
+            return
+        elif self.action is None or self.action != action:
             self.action = action
         elif action == self.action:
-            self.action_intensity = min(1, (1 / self.action_steps[action]) + self.action_intensity)
+            self.action_intensity = min(Agent.MAX_THRUST, (1 / self.action_steps[action]) + self.action_intensity)
 
-    async def update(self):
+    def update(self):
 
         if self.state is Agent.INACTIVE:
             return
+        elif self.state is Agent.DESTROYED:
+            self.state = Agent.INACTIVE
 
-        if self.action is not None:
+        if self.action is None:
+            return
 
-            """Update pixel value"""
-            moved_centimeters = (self.action_intensity * Agent.MAX_SPEED)
-            self.action_progress += (moved_centimeters / self.environment.Cell.CELL_DIMENSION)
+        action = self.action
 
-            if self.action_progress >= 1:
-                self.action_progress -= 1  # TODO, may break in some cases?
+        d_prog = ((self.action_intensity * Agent.MAX_SPEED) / Agent.MAX_SPEED) * self.environment.tick_ps_ratio
+        self.action_progress += d_prog
 
-                """Unset from current cell"""
-                current_cell = self.environment.grid[self.y, self.x]
-                #assert current_cell.occupant == self
-                current_cell.occupant = None
+        """Calculate number of steps to tage based on the progress"""
+        steps = int(self.action_progress)
+        self.action_progress -= steps
 
-                """Update location"""
-                if self.action is ActionSpace.LEFT:
-                    self.x -= 1  # TODO some punishmnent signal when x < 0! PANG!
-                elif self.action is ActionSpace.RIGHT:
-                    self.x += 1
-                elif self.action is ActionSpace.UP:
-                    self.y -= 1
-                elif self.action is ActionSpace.DOWN:
-                    self.y += 1
+        assert self.action_progress < 1  # TODO - Remove when release
 
-                """Set to new cell"""
-                if self.y < 0 or self.x < 0 or self.y >= self.environment.h or self.x >= self.environment.w:
-                    await self.crash()
-                    return
+        x, y = np.multiply(ActionSpace.DIRECTIONS[action], steps)
 
-                self.environment.grid[self.y, self.x].occupant = self
+        return_code = self.environment.grid.move_relative(self, x, y)
+        self.state = Agent.MOVING
 
+        if return_code == Grid.MOVE_WALL_COLLISION:
+            #print("Wall crash")
+            self.crash()
+            return
+        elif return_code == Grid.MOVE_AGENT_COLLISION:
+            # TODO additional handling for other agent
+            #print("Agent Crash")
+            self.crash()
+            return
 
-                """Decay intensity"""
-                self.action_intensity = max(0, self.action_intensity * self.action_decay_factor)
-                if self.action_intensity == 0:
-                    self.action = None
+        """Decay acceleration / Thrust."""
+        self.action_intensity = max(
+            0,
+            self.action_intensity - ((1 / (self.action_steps[action] * self.action_decay_factor)) * self.environment.tick_ps_ratio)
+        )
 
-        """Evaluate task objective."""
-        if self.task:
-            if self.task.at_location():
-                self.task.signal()
+        if self.action_intensity == 0:
+            self.state = Agent.IDLE
 
 
 class ManhattanAgent(Agent):
 
-    def __init__(self, loop, env):
-        super().__init__(loop, env)
+    def __init__(self, env):
+        super().__init__(env)
 
-    async def automate(self):
-
+    def automate(self):
         if self.task:
             # +dY = Above
             # -dY = Below
@@ -138,21 +170,22 @@ class ManhattanAgent(Agent):
             # -dX = Left Of
             task_coords = self.task.get_coordinates()
 
-            d_x = self.x - task_coords.x
-            d_y = self.y - task_coords.y
+            d_x = self.cell.x - task_coords.x
+            d_y = self.cell.y - task_coords.y
 
             is_aligned_x = d_x == 0
             is_aligned_y = d_y == 0
 
             if not is_aligned_x:
                 if d_x > 0:
-                    await self.do_action(ActionSpace.LEFT)
+                    self.do_action(ActionSpace.LEFT)
                 else:
-                    await self.do_action(ActionSpace.RIGHT)
+                    self.do_action(ActionSpace.RIGHT)
             elif not is_aligned_y:
                 if d_y > 0:
-                    await self.do_action(ActionSpace.UP)
+                    self.do_action(ActionSpace.UP)
                 else:
-                    await self.do_action(ActionSpace.DOWN)
+                    self.do_action(ActionSpace.DOWN)
+
             #print("x=%s | y=%s | dX=%s | dY=%s | Thrust=%s | alignment_x=%s | alignment_y=%s" %
-            #      (self.x, self.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))
+            #      (self.cell.x, self.cell.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))

@@ -9,9 +9,8 @@ import cell_types
 
 class DeliveryPointGenerator:
 
-    def __init__(self, loop, environment, seed=int(time.time()), frequency=0.009):
+    def __init__(self, environment, seed=int(time.time()), frequency=0.009):
         self.random = random.Random(seed)
-        self.loop = loop
         self.environment = environment
         self.frequency = frequency
         self.data = self.generate
@@ -24,19 +23,20 @@ class DeliveryPointGenerator:
     @property
     def generate(self):
         delivery_points = []
-        n_rows = self.environment.h
-        n_cols = self.environment.w
 
-        cols = [x for x in range(n_cols)]
+        possible_xs = np.arange(self.environment.width)
 
-        for row in range(1, n_rows):
-            selected_cols = list(self.roll(cols, self.frequency))
+        for y in np.arange(self.environment.height):
+            if y < 2:
+                continue
+            selected_xs = list(self.roll(possible_xs, self.frequency))
 
-            for col in selected_cols:
-                cell = self.environment.grid[row, col]
-                cell.type = cell_types.DeliveryPoint
-
+            for x in selected_xs:
+                cell = self.environment.grid.cell(x, y)
+                cell.type = cell_types.OrderDelivery
+                cell.original_type = cell_types.OrderDelivery
                 delivery_points.append(cell)
+
         return delivery_points
 
 

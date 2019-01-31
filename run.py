@@ -1,54 +1,42 @@
-import asyncio
-from threading import Thread
-
 import renderer
 from agent import ManhattanAgent
 from environment import Environment
 from scheduler import RandomScheduler
 
 
-
-
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
 
-    r = renderer.HTTPRenderer(loop=asyncio.new_event_loop(), fps=30)
-    t = Thread(target=r._loop.run_forever)
-    t.daemon = True
-    t.start()
+    fps = 60
+    ups = None
 
-
+    rt = renderer.HTTPRenderer(fps=fps)
 
     env = Environment(
-        loop=loop,
-        height=50,
-        width=50,
+        height=20,
+        width=20,
         depth=3,
-        agents=100,
+        agents=20,
         agent_class=ManhattanAgent,
-        renderer=r,
-        tile_height=16,
-        tile_width=16,
-        scheduler=RandomScheduler
+        renderer=rt,
+        tile_height=32,
+        tile_width=32,
+        scheduler=RandomScheduler,
+        ups=ups,
+        ticks_per_second=1,
+        spawn_interval=1,  # In seconds
+        task_generate_interval=1,  # In seconds
+        task_assign_interval=1  # In seconds
     )
 
-    agent = env.add_agent(ManhattanAgent)
+    rt.daemon = True
+    rt.start()
 
+    env.daemon = True
+    env.start()
 
-    async def game_loop():
-        # Play the game for X episodes
-        while True:
-            for agent in env.agents:
-                await agent.automate()
-                await env.update()
+    while True:
+        for agent in env.agents:
+            agent.automate()
+            env.update()
+            env.render()
 
-                await r.blit(await env.preprocess())
-                #await asyncio.sleep(0.05)
-
-    loop.create_task(game_loop())
-
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt as e:
-        #print("Exited cleanly using keyboard.")
-        exit(0)
