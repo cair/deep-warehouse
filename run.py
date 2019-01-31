@@ -12,10 +12,10 @@ if __name__ == "__main__":
     rt = renderer.HTTPRenderer(fps=fps)
 
     env = Environment(
-        height=30,
-        width=50,
+        height=20,
+        width=20,
         depth=3,
-        agents=50,
+        agents=20,
         agent_class=ManhattanAgent,
         renderer=rt,
         tile_height=32,

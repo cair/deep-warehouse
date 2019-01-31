@@ -27,12 +27,14 @@ class DeliveryPointGenerator:
         possible_xs = np.arange(self.environment.width)
 
         for y in np.arange(self.environment.height):
-
+            if y < 2:
+                continue
             selected_xs = list(self.roll(possible_xs, self.frequency))
 
             for x in selected_xs:
                 cell = self.environment.grid.cell(x, y)
-                cell.type = cell_types.DeliveryPoint
+                cell.type = cell_types.OrderDelivery
+                cell.original_type = cell_types.OrderDelivery
                 delivery_points.append(cell)
 
         return delivery_points

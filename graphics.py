@@ -36,7 +36,7 @@ class Graphics:
         self.SPRITE_DELIVERY_POINT = self._plain_cell(borders=True, color=(0, 255, 0))
         self.SPRITE_PICKUP_POINT = self._plain_cell(borders=True, color=(255, 0, 0))
         self.SPRITE_AGENT = {
-            Agent.IDLE: self._sprite_agent(cell_types.AgentIdle.COLOR),
+            Agent.IDLE: self._sprite_agent(cell_types.Agent.COLOR),
             Agent.MOVING_FULL: self._sprite_agent(cell_types.AgentMovingFull.COLOR),
             Agent.MOVING_EMPTY: self._sprite_agent(cell_types.AgentMovingEmpty.COLOR),
             Agent.DIGGING: self._sprite_agent(cell_types.AgentDigging.COLOR)
@@ -152,16 +152,12 @@ class PygameGraphics:
         else:
             self.canvas = Surface((self.canvas_shape[1], self.canvas_shape[0]))
 
-        self.SPRITE_CELL = self._init_sprite(self.bgr2rgb(cell_types.EmptyPoint.COLOR), borders=True)
-        self.SPRITE_DELIVERY_POINT = self._init_sprite(self.bgr2rgb(cell_types.DeliveryPoint.COLOR), borders=True)
-        self.SPRITE_PICKUP_POINT = self._init_sprite(self.bgr2rgb(cell_types.PickupPoint.COLOR), borders=True)
+        self.SPRITE_CELL = self._init_sprite(self.bgr2rgb(cell_types.Empty.COLOR), borders=True)
+        self.SPRITE_DELIVERY_POINT = self._init_sprite(self.bgr2rgb(cell_types.OrderDelivery.COLOR), borders=True)
+        self.SPRITE_DELIVERY_POINT_ACTIVE = self._init_sprite(self.bgr2rgb(cell_types.OrderDeliveryActive.COLOR), borders=True)
+        self.SPRITE_PICKUP_POINT = self._init_sprite(self.bgr2rgb(cell_types.OrderPickup.COLOR), borders=True)
         self.SPRITE_SPAWN_POINT = self._init_sprite(self.bgr2rgb(cell_types.SpawnPoint.COLOR), borders=True)
-        self.SPRITE_AGENT = {
-            Agent.IDLE: self._init_sprite(self.bgr2rgb(cell_types.AgentIdle.COLOR), borders=True),
-            Agent.MOVING_FULL: self._init_sprite(self.bgr2rgb(cell_types.AgentMovingFull.COLOR), borders=True),
-            Agent.MOVING_EMPTY: self._init_sprite(self.bgr2rgb(cell_types.AgentMovingEmpty.COLOR), borders=True),
-            Agent.DIGGING: self._init_sprite(self.bgr2rgb(cell_types.AgentDigging.COLOR), borders=True)
-        }
+        self.SPRITE_AGENT = self._init_sprite(self.bgr2rgb(cell_types.Agent.COLOR), borders=True)
 
         self._init_canvas()
     def bgr2rgb(self, bgr):
@@ -208,10 +204,12 @@ class PygameGraphics:
             rect = self.rectangles[cell.i]
             # TODO automate this if clause...
             if cell.occupant:
-                self.canvas.blit(self.SPRITE_AGENT[cell.occupant.state], rect)
+                self.canvas.blit(self.SPRITE_AGENT, rect)
 
                 # TODO, use cell_type instead of task to determine location of tasks...
-                if cell.occupant.task:
+                # TODO this is actually WRONG!
+                # todo MUST fix asap.
+                """if cell.occupant.task:
                     if cell.occupant.task.picked_up:
                         delivery_rect = self.rectangles[self.environment.grid.cell(
                             cell.occupant.task.delivery_x,
@@ -223,15 +221,16 @@ class PygameGraphics:
                             cell.occupant.task.order_x,
                             cell.occupant.task.order_y
                         ).i]
-                        self.canvas.blit(self.SPRITE_PICKUP_POINT, pickup_rect)
-
-            elif cell.type == cell_types.EmptyPoint:
+                        self.canvas.blit(self.SPRITE_PICKUP_POINT, pickup_rect)"""
+            elif cell.type == cell_types.Empty:
                 self.canvas.blit(self.SPRITE_CELL, rect)
             elif cell.type == cell_types.SpawnPoint:
                 self.canvas.blit(self.SPRITE_SPAWN_POINT, rect)
-            elif cell.type == cell_types.DeliveryPoint:
+            elif cell.type == cell_types.OrderDelivery:
                 self.canvas.blit(self.SPRITE_DELIVERY_POINT, rect)
-            elif cell.type == cell_types.PickupPoint:
+            elif cell.type == cell_types.OrderDeliveryActive:
+                self.canvas.blit(self.SPRITE_DELIVERY_POINT_ACTIVE, rect)
+            elif cell.type == cell_types.OrderPickup:
                 self.canvas.blit(self.SPRITE_PICKUP_POINT, rect)
 
         if self.has_window:

@@ -76,8 +76,7 @@ class Agent:
 
     def crash(self):
         if self.task:
-            self.environment.scheduler.generator.queue.append(self.task)
-            self.task.assignee = None
+            self.task.abort()
             self.task = None
         self.victory = False
         self.despawn()

@@ -109,8 +109,7 @@ class Environment(Process):
             agent.update()
             """Evaluate task objective."""
             if agent.task:
-                if agent.task.at_location():
-                    agent.task.signal()
+                agent.task.evaluate()
 
         seconds = self.get_seconds()
         if seconds % self.spawn_interval == 0:
@@ -130,8 +129,8 @@ class Environment(Process):
         for agent in self.agents:
             self.graphics.draw_agent(agent)
             if agent.task:
-                self.graphics.draw_pickup_point(agent.task.order_x, agent.task.order_y)
-                self.graphics.draw_delivery_point(agent.task.delivery_x, agent.task.delivery_y)
+                self.graphics.draw_pickup_point(agent.task.x_0, agent.task.y_0)
+                self.graphics.draw_delivery_point(agent.task.x_1, agent.task.y_1)
 
         self.graphics.blit()
 

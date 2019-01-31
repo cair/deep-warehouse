@@ -18,6 +18,7 @@ class SpawnPoints:
             for x in width:
                 cell = self.environment.grid.cell(x, y)
                 cell.type = cell_types.SpawnPoint
+                cell.original_type = cell_types.SpawnPoint
                 data.append(cell)
 
         return data

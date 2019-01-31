@@ -4,42 +4,87 @@ import random
 import uuid
 from collections import namedtuple
 
+import cell_types
+
 
 class Order:
-    def __init__(self, order_x, order_y, depth, delivery_x, delivery_y):
+    Coordinate = namedtuple("Coordinate", ["x", "y", "z"])
+
+    def __init__(self, environment, order_x, order_y, depth, delivery_x, delivery_y):
         self.id = str(uuid.uuid4())
-        self.order_x = order_x
-        self.order_y = order_y
-        self.delivery_x = delivery_x
-        self.delivery_y = delivery_y
+        self.environment = environment
 
-        self.picked_up = False
-        self.done = False
+        self.agent = None
 
-        self.depth = depth
-        self.assignee = None
-        self.coords = namedtuple("Coordinates", ["x", "y"])
-        self.order_coords = self.coords(x=order_x, y=order_y)
-        self.delivery_coords = self.coords(x=delivery_x, y=delivery_y)
+        self.x_0 = order_x
+        self.y_0 = order_y
+        self.z_0 = depth
+
+        self.x_1 = delivery_x
+        self.y_1 = delivery_y
+        self.z_1 = 0
+
+        self.has_picked_up = False
+        self.has_finished = False
+        self.has_started = False
+
+        self.c_0 = Order.Coordinate(x=self.x_0, y=self.y_0, z=self.z_0)
+        self.c_1 = Order.Coordinate(x=self.x_1, y=self.y_1, z=self.z_1)
 
     def get_coordinates(self):
-        if self.picked_up:
-            return self.delivery_coords
+        return self.c_1 if self.has_picked_up else self.c_0
 
-        return self.order_coords
+    def start(self):
+        self.has_started = True
 
-    def at_location(self):
+        """Set Target cell to pickup and destination to delivery"""
+        cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+        cell_0.order_type = cell_types.OrderPickup
+        cell_0.update_type()
+        cell_0.trigger_callback()
+
+        cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+        cell_1.order_type = cell_types.OrderDeliveryActive
+        cell_1.update_type()
+        cell_1.trigger_callback()
+
+    def abort(self):
+        self.has_started = False
+        self.environment.scheduler.generator.queue.append(self)
+        self.agent = None
+
+        """Set Target cell to pickup and destination to delivery"""
+        cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+        cell_0.update_type(reset=True)
+        cell_0.trigger_callback()
+
+        cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+        cell_1.update_type(reset=True)
+        cell_1.trigger_callback()
+
+    def evaluate(self):
+        assert self.has_started
         coords = self.get_coordinates()
-        return self.assignee.cell.x == coords.x and self.assignee.cell.y == coords.y
+        at_location = self.agent.cell.x == coords.x and self.agent.cell.y == coords.y
 
-    def signal(self):
-        if self.picked_up:
-            self.done = True
-            self.assignee.task = None
-            self.assignee = None
+        if not at_location:
+            return
+
+        if self.has_picked_up:
+            self.has_finished = True
+            self.agent.task = None
+            self.agent = None
+
+            cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
+            cell_1.update_type(reset=True)
+            cell_1.trigger_callback()
+
         else:
-            self.picked_up = True
+            self.has_picked_up = True
 
+            cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
+            cell_0.update_type(reset=True)
+            cell_0.trigger_callback()
 
 class OrderGenerator:
 
@@ -65,7 +110,7 @@ class OrderGenerator:
 
         delivery_point = random.choice(self.environment.delivery_points.data)
 
-        order = Order(x, y, depth, delivery_point.x, delivery_point.y)
+        order = Order(self.environment, x, y, depth, delivery_point.x, delivery_point.y)
         self.queue.append(order)
 
 
@@ -93,5 +138,5 @@ class RandomScheduler(Scheduler):
             """No available task."""
             return
         agent.task = task
-        agent.task.assignee = agent
-
+        agent.task.agent = agent
+        task.start()
