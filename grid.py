@@ -32,10 +32,8 @@ class Grid:
         if cell.occupant and cell.occupant != agent:
             return Grid.MOVE_AGENT_COLLISION
         else:
-            if agent.cell:
-                agent.cell.occupant = None
-            cell.occupant = agent
             agent.cell = cell
+            cell.occupant = agent
             return Grid.MOVE_OK
 
     def has_occupant(self,x, y):

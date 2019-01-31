@@ -10,10 +10,15 @@ class Agent:
     MAX_THRUST = 2
 
     IDLE = 0
-    MOVING_EMPTY = 1
-    MOVING_FULL = 2
-    DIGGING = 3
-    INACTIVE = 4
+    MOVING = 1
+    PICKUP = 2
+    DELIVERY = 3
+    DESTROYED = 4
+    INACTIVE = 5
+
+    ALL_STATES = [IDLE, MOVING, PICKUP, DELIVERY, DESTROYED, INACTIVE]
+
+    IMMOBILE_STATES = [DESTROYED, INACTIVE]
 
     @staticmethod
     def new_id():
@@ -30,7 +35,6 @@ class Agent:
         self.task = None
 
         self.state = Agent.INACTIVE  # TODO
-        self.victory = False
 
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
@@ -56,36 +60,53 @@ class Agent:
 
     @cell.setter
     def cell(self, x):
+
+        _cell = self.cell
+        if _cell:
+            _cell.occupant = None
+
         self._cell = x
 
     def spawn(self, spawn_point):
-        try:
-            result = self.environment.grid.move(self, spawn_point.x, spawn_point.y)
-            assert result == Grid.MOVE_OK
-            self.state = Agent.IDLE
-        except AssertionError as e:
-            """RaceCondition. Another unit moved to spawn tile WHILE async loop ran. TODO"""
-            pass
+        result = self.environment.grid.move(self, spawn_point.x, spawn_point.y)
+        assert result == Grid.MOVE_OK
+        self.state = Agent.IDLE
 
     def despawn(self):
+        self.reset_action()
+        self.cell = None
         self.state = Agent.INACTIVE
-        self.action = None
-        self.action_intensity = 0
-        if self.cell:
-            self.cell.occupant = None
 
     def crash(self):
+
         if self.task:
             self.task.abort()
             self.task = None
-        self.victory = False
-        self.despawn()
+
+        self.state = Agent.DESTROYED
+        self.reset_action()
+        self.cell = None
+
+    def reset_action(self):
+        self.action = None
+        self.action_intensity = 0
 
     def automate(self):
         return None
 
     def do_action(self, action):
-        if self.action is None or self.action != action:
+        if self.state in Agent.IMMOBILE_STATES:
+            return
+
+        if action < 0 or action >= ActionSpace.N_ACTIONS:
+            raise ValueError("The inserted action is out of action_space bounds 0 => %s." % ActionSpace.N_ACTIONS)
+
+        """Ensure that action is Integer"""
+        action = int(action)
+
+        if action is ActionSpace.NOOP:
+            return
+        elif self.action is None or self.action != action:
             self.action = action
         elif action == self.action:
             self.action_intensity = min(Agent.MAX_THRUST, (1 / self.action_steps[action]) + self.action_intensity)
@@ -94,6 +115,8 @@ class Agent:
 
         if self.state is Agent.INACTIVE:
             return
+        elif self.state is Agent.DESTROYED:
+            self.state = Agent.INACTIVE
 
         if self.action is None:
             return
@@ -112,20 +135,26 @@ class Agent:
         x, y = np.multiply(ActionSpace.DIRECTIONS[action], steps)
 
         return_code = self.environment.grid.move_relative(self, x, y)
+        self.state = Agent.MOVING
 
         if return_code == Grid.MOVE_WALL_COLLISION:
             #print("Wall crash")
             self.crash()
+            return
         elif return_code == Grid.MOVE_AGENT_COLLISION:
             # TODO additional handling for other agent
             #print("Agent Crash")
             self.crash()
+            return
 
         """Decay acceleration / Thrust."""
         self.action_intensity = max(
             0,
             self.action_intensity - ((1 / (self.action_steps[action] * self.action_decay_factor)) * self.environment.tick_ps_ratio)
         )
+
+        if self.action_intensity == 0:
+            self.state = Agent.IDLE
 
 
 class ManhattanAgent(Agent):

@@ -160,6 +160,7 @@ class PygameGraphics:
         self.SPRITE_AGENT = self._init_sprite(self.bgr2rgb(cell_types.Agent.COLOR), borders=True)
 
         self._init_canvas()
+
     def bgr2rgb(self, bgr):
         return bgr[2], bgr[1], bgr[0]
 
@@ -205,23 +206,6 @@ class PygameGraphics:
             # TODO automate this if clause...
             if cell.occupant:
                 self.canvas.blit(self.SPRITE_AGENT, rect)
-
-                # TODO, use cell_type instead of task to determine location of tasks...
-                # TODO this is actually WRONG!
-                # todo MUST fix asap.
-                """if cell.occupant.task:
-                    if cell.occupant.task.picked_up:
-                        delivery_rect = self.rectangles[self.environment.grid.cell(
-                            cell.occupant.task.delivery_x,
-                            cell.occupant.task.delivery_y
-                        ).i]
-                        self.canvas.blit(self.SPRITE_DELIVERY_POINT, delivery_rect)
-                    else:
-                        pickup_rect = self.rectangles[self.environment.grid.cell(
-                            cell.occupant.task.order_x,
-                            cell.occupant.task.order_y
-                        ).i]
-                        self.canvas.blit(self.SPRITE_PICKUP_POINT, pickup_rect)"""
             elif cell.type == cell_types.Empty:
                 self.canvas.blit(self.SPRITE_CELL, rect)
             elif cell.type == cell_types.SpawnPoint:

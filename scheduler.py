@@ -5,6 +5,7 @@ import uuid
 from collections import namedtuple
 
 import cell_types
+from agent import Agent
 
 
 class Order:
@@ -62,29 +63,33 @@ class Order:
         cell_1.update_type(reset=True)
         cell_1.trigger_callback()
 
+    def at_location(self):
+        coords = self.get_coordinates()
+        return self.agent.cell.x == coords.x and self.agent.cell.y == coords.y
+
     def evaluate(self):
         assert self.has_started
-        coords = self.get_coordinates()
-        at_location = self.agent.cell.x == coords.x and self.agent.cell.y == coords.y
 
-        if not at_location:
+        if not self.at_location():
             return
 
         if self.has_picked_up:
             self.has_finished = True
             self.agent.task = None
+            self.agent.state = Agent.DELIVERY
             self.agent = None
 
             cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
             cell_1.update_type(reset=True)
             cell_1.trigger_callback()
 
+
         else:
             self.has_picked_up = True
-
             cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
             cell_0.update_type(reset=True)
             cell_0.trigger_callback()
+            self.agent.state = Agent.PICKUP
 
 class OrderGenerator:
 

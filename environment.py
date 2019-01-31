@@ -1,9 +1,8 @@
-import asyncio
-import time
 from multiprocessing import Process, Array
-from threading import Thread
+
+import time
 import numpy as np
-import uvloop
+
 from action_space import ActionSpace
 from agent import Agent
 from delivery_points import DeliveryPointGenerator
@@ -69,11 +68,13 @@ class Environment(Process):
         """The scheduler is a engine for scheduling tasks to agents."""
         self.scheduler = scheduler(self)
 
-        """List of all available agents."""
-        self.agents = [agent_class(self) for _ in range(agents)]
-
         """Current selected agent."""
         self.agent = None
+
+        """List of all available agents."""
+        self.agents = []
+        for _ in range(agents):
+            self.add_agent(agent_cls=agent_class)
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = PygameGraphics(environment=self,
@@ -86,6 +87,9 @@ class Environment(Process):
     def add_agent(self, agent_cls):
         idx = len(self.agents)
         self.agents.append(agent_cls(self))
+        if self.agent is None:
+            self.agent = self.agents[idx]
+
         return self.agents[idx]
 
     def set_agent(self, agent):
@@ -104,13 +108,6 @@ class Environment(Process):
 
     def update(self):
         self.tick_ps_counter += 1
-
-        for agent in self.agents:
-            agent.update()
-            """Evaluate task objective."""
-            if agent.task:
-                agent.task.evaluate()
-
         seconds = self.get_seconds()
         if seconds % self.spawn_interval == 0:
             self.deploy_agents()
@@ -120,6 +117,12 @@ class Environment(Process):
 
         if seconds % self.task_assignment_interval == 0:
             self.scheduler.generator.generate(init=False)
+
+        for agent in self.agents:
+            agent.update()
+            """Evaluate task objective."""
+            if agent.task:
+                agent.task.evaluate()
 
         if self.ups:
             time.sleep(self.ups_interval)
@@ -157,7 +160,7 @@ class Environment(Process):
         :return:
         """
         for agent in self.agents:
-            if agent.task or agent.state == Agent.INACTIVE:
+            if agent.task or agent.state in [Agent.DESTROYED, Agent.INACTIVE]:
                 """Agent already as a task assigned."""
 
                 continue
