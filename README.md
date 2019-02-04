@@ -3,7 +3,7 @@ A logistics environment where the goal is to use agents to transfer goods betwee
 
 ## Installation
 ```python
-pip install perara-deep-logistics
+pip install git+https://github.com/perara/deep-logistics.git
 ```
 ## Run using docker
 To increase sample throughput, the docker containers use a shared volume
