@@ -1,6 +1,5 @@
 # logistics-sim
-A Simulator for complex logistic environments
-
+A logistics environment where the goal is to use agents to transfer goods between destinations. The agent must baster long-term planning, short-term planning, and clever exploration to master the environment in a sufficient amount of time.
 
 ## Installation
 ```python
