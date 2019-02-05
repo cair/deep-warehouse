@@ -1,10 +1,9 @@
 # logistics-sim
-A Simulator for complex logistic environments
-
+A logistics environment where the goal is to use agents to transfer goods between destinations. The agent must baster long-term planning, short-term planning, and clever exploration to master the environment in a sufficient amount of time.
 
 ## Installation
 ```python
-pip install perara-deep-logistics
+pip install git+https://github.com/perara/deep-logistics.git
 ```
 ## Run using docker
 To increase sample throughput, the docker containers use a shared volume
