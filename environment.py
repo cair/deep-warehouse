@@ -60,10 +60,10 @@ class Environment(Process):
         self.grid = Grid(width=width, height=height)
 
         """Spawn-points is the location where agent can spawn."""
-        self.spawn_points = SpawnPoints(self, seed=123)
+        self.spawn_points = SpawnPoints(self, seed=12)
 
         """Delivery points is a (TODO) static definition for where agents can deliver scheduled tasks."""
-        self.delivery_points = DeliveryPointGenerator(self, seed=123)
+        self.delivery_points = DeliveryPointGenerator(self, seed=555)
 
         """The scheduler is a engine for scheduling tasks to agents."""
         self.scheduler = scheduler(self)

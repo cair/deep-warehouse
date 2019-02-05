@@ -3,3 +3,4 @@ aiohttp
 uvloop
 SharedArray
 pygame
+numpy

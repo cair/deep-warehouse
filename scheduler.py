@@ -50,9 +50,12 @@ class Order:
         cell_1.trigger_callback()
 
     def abort(self):
+        self.has_picked_up = False
+        self.has_finished = False
         self.has_started = False
-        self.environment.scheduler.generator.queue.append(self)
         self.agent = None
+        self.environment.scheduler.generator.queue.append(self)
+
 
         """Set Target cell to pickup and destination to delivery"""
         cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
@@ -90,6 +93,7 @@ class Order:
             cell_0.update_type(reset=True)
             cell_0.trigger_callback()
             self.agent.state = Agent.PICKUP
+
 
 class OrderGenerator:
 
