@@ -19,6 +19,9 @@ class Grid:
     def cell(self, x, y):
         return self.grid[y, x]
 
+    def relative_cell(self, agent, dx, dy):
+        return self.cell(agent.cell.x + dx, agent.cell.y + dy)
+
     def move_relative(self, agent, x, y):
         return self.move(agent, agent.cell.x + x, agent.cell.y + y)
 

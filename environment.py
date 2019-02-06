@@ -31,7 +31,8 @@ class Environment(Process):
                  spawn_interval=1,
                  task_generate_interval=5,
                  task_assign_interval=1,
-                 delivery_points=None):
+                 delivery_points=None
+                 ):
         super().__init__()
         self.width = width
         self.height = height

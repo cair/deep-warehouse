@@ -11,7 +11,7 @@ class SpawnPoints:
     @property
     def generate(self):
         width = [x for x in range(self.environment.width)]
-        height = [0, 1]
+        height = [0, 1, 2]
 
         data = []
         for y in height:

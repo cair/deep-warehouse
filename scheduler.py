@@ -80,12 +80,12 @@ class Order:
             self.has_finished = True
             self.agent.task = None
             self.agent.state = Agent.DELIVERY
+            self.agent.total_deliveries += 1
             self.agent = None
 
             cell_1 = self.environment.grid.cell(self.x_1, self.y_1)
             cell_1.update_type(reset=True)
             cell_1.trigger_callback()
-
 
         else:
             self.has_picked_up = True
@@ -93,7 +93,7 @@ class Order:
             cell_0.update_type(reset=True)
             cell_0.trigger_callback()
             self.agent.state = Agent.PICKUP
-
+            self.agent.total_pickups += 1
 
 class OrderGenerator:
 

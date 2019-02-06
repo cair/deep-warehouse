@@ -1,3 +1,5 @@
+import pygame
+
 import numpy as np
 from deep_logistics.action_space import ActionSpace
 from deep_logistics.grid import Grid
@@ -31,6 +33,11 @@ class Agent:
         self.id = Agent.new_id()
         self._cell = None
         self.speed = 0
+        self.sensor_radius = 2
+        r = self.sensor_radius
+        self.proximity_coordinates = [
+            (x, y) for y in range(-r, r + 1) for x in range(-r, r + 1) if x != 0 and y == 0 or y != 0 and x == 0
+        ]
 
         self.task = None
 
@@ -39,7 +46,7 @@ class Agent:
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
-        self.action_decay_factor = 3
+        self.action_decay_factor = 15
 
         self.action_steps = {
             ActionSpace.LEFT: 5,  # Number of ticks (Delay) to perform Action.Left
@@ -48,6 +55,13 @@ class Agent:
             ActionSpace.DOWN: 5,
 
         }
+
+        self.total_deliveries = 0
+        self.total_pickups = 0
+
+    def reset_stats(self):
+        self.total_deliveries = 0
+        self.total_pickups = 0
 
     @property
     def cell(self):
@@ -71,6 +85,7 @@ class Agent:
         result = self.environment.grid.move(self, spawn_point.x, spawn_point.y)
         assert result == Grid.MOVE_OK
         self.state = Agent.IDLE
+        self.reset_stats()
 
     def despawn(self):
         self.reset_action()
@@ -106,8 +121,10 @@ class Agent:
 
         if action is ActionSpace.NOOP:
             return
-        elif self.action is None or self.action != action:
+        elif self.action is None or (self.action != action and self.state == Agent.IDLE):
             self.action = action
+        elif self.action != action:
+            self._decay_acceleration()
         elif action == self.action:
             self.action_intensity = min(Agent.MAX_THRUST, (1 / self.action_steps[action]) + self.action_intensity)
 
@@ -144,18 +161,84 @@ class Agent:
         elif return_code == Grid.MOVE_AGENT_COLLISION:
             # TODO additional handling for other agent
             #print("Agent Crash")
+            self.environment.grid.relative_cell(self, x, y).occupant.crash()
             self.crash()
+            
             return
 
-        """Decay acceleration / Thrust."""
-        self.action_intensity = max(
-            0,
-            self.action_intensity - ((1 / (self.action_steps[action] * self.action_decay_factor)) * self.environment.tick_ps_ratio)
-        )
+        assert action == self.action
+        self._decay_acceleration()
 
         if self.action_intensity == 0:
             self.state = Agent.IDLE
 
+    def _decay_acceleration(self):
+        """Decay acceleration / Thrust."""
+        self.action_intensity = max(
+            0,
+            self.action_intensity - ((1 / (self.action_steps[self.action] * self.action_decay_factor)) * self.environment.tick_ps_ratio)
+        )
+
+    def get_proximity_sensors(self):
+        left = 1000
+        right = 1000
+        up = 1000
+        down = 1000
+
+        if self.cell:
+            r = 2  # Range
+
+            for x, y in self.proximity_coordinates:
+                try:
+                    has_occupant = self.environment.grid.relative_cell(self, x, y).occupant is not None
+                except: # TODO maybe this should be handled with IF STATEMENT?
+                    has_occupant = False
+
+                """Left proximity"""
+                """Right proximity"""
+                """Up proximity"""
+                """Down proximity"""
+                if x < 0 and y == 0 and has_occupant:
+                    left = min(left, abs(x))
+                elif x > 0 and y == 0 and has_occupant:
+                    right = min(right, x)
+                elif y < 0 and x == 0 and has_occupant:
+                    up = min(up, abs(y))
+                elif y > 0 and x == 0 and has_occupant:
+                    down = min(down, y)
+
+        if left == 1000:
+            left = -1
+        if right == 1000:
+            right = -1
+        if up == 1000:
+            up = -1
+        if down == 1000:
+            down = -1
+
+        return [left, right, up, down]
+
+class InputAgent(Agent):
+
+    def __init__(self, env):
+        super().__init__(env)
+
+    def automate(self):
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    self.do_action(ActionSpace.LEFT)
+                if event.key == pygame.K_RIGHT:
+                    self.do_action(ActionSpace.RIGHT)
+                if event.key == pygame.K_DOWN:
+                    self.do_action(ActionSpace.DOWN)
+                if event.key == pygame.K_UP:
+                    self.do_action(ActionSpace.UP)
+                if event.key == pygame.K_KP_ENTER:
+                    self.do_action(ActionSpace.NOOP)
+
+                print(self.get_proximity_sensors())
 
 class ManhattanAgent(Agent):
 
