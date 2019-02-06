@@ -1,5 +1,5 @@
 
-import cell_types
+from deep_logistics import cell_types
 
 
 class SpawnPoints:

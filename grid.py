@@ -1,6 +1,6 @@
 import numpy as np
 
-from cell import Cell
+from deep_logistics.cell import Cell
 
 
 class Grid:

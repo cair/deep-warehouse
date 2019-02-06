@@ -4,8 +4,8 @@ import random
 import uuid
 from collections import namedtuple
 
-import cell_types
-from agent import Agent
+from deep_logistics import cell_types
+from deep_logistics.agent import Agent
 
 
 class Order:

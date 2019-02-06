@@ -1,6 +1,6 @@
 import numpy as np
-from action_space import ActionSpace
-from grid import Grid
+from deep_logistics.action_space import ActionSpace
+from deep_logistics.grid import Grid
 
 
 class Agent:

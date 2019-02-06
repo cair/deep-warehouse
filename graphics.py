@@ -1,14 +1,12 @@
-import ctypes
 import pygame
-import random
 import SharedArray as sa
 
 from cv2 import FONT_HERSHEY_SIMPLEX, cv2
 import numpy as np
 from pygame import Surface
 
-import cell_types
-from agent import Agent
+from deep_logistics import cell_types
+from deep_logistics.agent import Agent
 
 
 class Graphics:

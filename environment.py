@@ -3,13 +3,13 @@ from multiprocessing import Process, Array
 import time
 import numpy as np
 
-from action_space import ActionSpace
-from agent import Agent
-from delivery_points import DeliveryPointGenerator
-from graphics import Graphics, PygameGraphics
-from grid import Grid
-from scheduler import RandomScheduler
-from spawn_points import SpawnPoints
+from deep_logistics.action_space import ActionSpace
+from deep_logistics.agent import Agent
+from deep_logistics.delivery_points import DeliveryPointGenerator
+from deep_logistics.graphics import Graphics, PygameGraphics
+from deep_logistics.grid import Grid
+from deep_logistics.scheduler import RandomScheduler
+from deep_logistics.spawn_points import SpawnPoints
 
 
 class Environment(Process):
@@ -30,7 +30,8 @@ class Environment(Process):
                  ticks_per_second=10,
                  spawn_interval=1,
                  task_generate_interval=5,
-                 task_assign_interval=1):
+                 task_assign_interval=1,
+                 delivery_points=None):
         super().__init__()
         self.width = width
         self.height = height
@@ -63,7 +64,7 @@ class Environment(Process):
         self.spawn_points = SpawnPoints(self, seed=12)
 
         """Delivery points is a (TODO) static definition for where agents can deliver scheduled tasks."""
-        self.delivery_points = DeliveryPointGenerator(self, seed=555)
+        self.delivery_points = DeliveryPointGenerator(self, override=delivery_points, seed=555)
 
         """The scheduler is a engine for scheduling tasks to agents."""
         self.scheduler = scheduler(self)
@@ -73,6 +74,9 @@ class Environment(Process):
 
         """List of all available agents."""
         self.agents = []
+        if agent_class is None:
+            agent_class = Agent
+
         for _ in range(agents):
             self.add_agent(agent_cls=agent_class)
 
@@ -100,6 +104,9 @@ class Environment(Process):
         """
         self.agent = agent
 
+    def get_agent(self, idx):
+        return self.agents[idx]
+
     def step(self, action):
         self.agent.do_action(action=action)
 
@@ -119,6 +126,7 @@ class Environment(Process):
             self.scheduler.generator.generate(init=False)
 
         for agent in self.agents:
+            agent.automate()
             agent.update()
             """Evaluate task objective."""
             if agent.task:
