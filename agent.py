@@ -46,7 +46,7 @@ class Agent:
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
-        self.action_decay_factor = 15
+        self.action_decay_factor = 12  # TODO adjust
 
         self.action_steps = {
             ActionSpace.LEFT: 5,  # Number of ticks (Delay) to perform Action.Left
