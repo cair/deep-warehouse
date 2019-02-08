@@ -6,7 +6,7 @@ import numpy as np
 from deep_logistics.action_space import ActionSpace
 from deep_logistics.agent import Agent
 from deep_logistics.delivery_points import DeliveryPointGenerator
-from deep_logistics.graphics import Graphics, PygameGraphics
+from deep_logistics.graphics import PygameGraphics
 from deep_logistics.grid import Grid
 from deep_logistics.scheduler import RandomScheduler
 from deep_logistics.spawn_points import SpawnPoints
@@ -16,13 +16,14 @@ class Environment(Process):
     """
     Environment Class, Remember that Numpy Operates with arr[y, x]
     """
+
     def __init__(self,
                  height,
                  width,
                  depth,
                  agents=1,
                  agent_class=Agent,
-                 renderer=None,
+                 draw_screen=False,
                  tile_height=32,
                  tile_width=32,
                  ups=None,
@@ -38,7 +39,6 @@ class Environment(Process):
         self.height = height
         self.depth = depth
         self.action_space = ActionSpace
-        self.renderer = renderer
 
         """Updates per second."""
         self.ups = ups
@@ -83,11 +83,12 @@ class Environment(Process):
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = PygameGraphics(environment=self,
-                                 game_width=self.width,
-                                 game_height=self.height,
-                                 cell_width=tile_width,
-                                 cell_height=tile_height
-                                 )
+                                       game_width=self.width,
+                                       game_height=self.height,
+                                       cell_width=tile_width,
+                                       cell_height=tile_height,
+                                       has_window=draw_screen
+                                       )
 
     def add_agent(self, agent_cls):
         idx = len(self.agents)
@@ -174,5 +175,3 @@ class Environment(Process):
 
                 continue
             self.scheduler.give_task(agent)  # TODO - SJEKK ATTRIBUTE ERROR
-
-

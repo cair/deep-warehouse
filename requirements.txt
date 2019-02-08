@@ -1,6 +1,5 @@
 opencv-python
-aiohttp
-uvloop
+
 SharedArray
 pygame
 numpy

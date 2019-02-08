@@ -46,7 +46,7 @@ class Agent:
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
-        self.action_decay_factor = 15
+        self.action_decay_factor = 12  # 13 seems like a good parameter. 15 abit to much.
 
         self.action_steps = {
             ActionSpace.LEFT: 5,  # Number of ticks (Delay) to perform Action.Left
@@ -58,10 +58,12 @@ class Agent:
 
         self.total_deliveries = 0
         self.total_pickups = 0
+        self.total_actions = 0
 
     def reset_stats(self):
         self.total_deliveries = 0
         self.total_pickups = 0
+        self.total_actions = 0
 
     @property
     def cell(self):
@@ -110,6 +112,7 @@ class Agent:
         return None
 
     def do_action(self, action):
+        self.total_actions += 1
         if self.state in Agent.IMMOBILE_STATES:
             return
 
