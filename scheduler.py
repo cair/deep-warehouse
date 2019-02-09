@@ -1,5 +1,4 @@
 import abc
-import asyncio
 import random
 import uuid
 from collections import namedtuple
@@ -56,7 +55,6 @@ class Order:
         self.agent = None
         self.environment.scheduler.generator.queue.append(self)
 
-
         """Set Target cell to pickup and destination to delivery"""
         cell_0 = self.environment.grid.cell(self.x_0, self.y_0)
         cell_0.update_type(reset=True)
@@ -94,6 +92,7 @@ class Order:
             cell_0.trigger_callback()
             self.agent.state = Agent.PICKUP
             self.agent.total_pickups += 1
+
 
 class OrderGenerator:
 
@@ -134,18 +133,13 @@ class Scheduler(abc.ABC):
                              "RandomScheduler or DistanceScheduler")
 
 
-class RandomScheduler(Scheduler):
+class OnDemandScheduler(Scheduler):
+    """Gives tasks when the agent demands."""
 
     def give_task(self, agent):
-        if len(self.generator.queue) == 0:
-            return None
+        self.generator.add_task()
+        task = self.generator.queue.pop()
 
-        pop_at = random.randint(0, len(self.generator.queue) - 1)
-        task = self.generator.queue.pop(pop_at)
-
-        if not task:
-            """No available task."""
-            return
         agent.task = task
         agent.task.agent = agent
         task.start()

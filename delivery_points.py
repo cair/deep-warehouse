@@ -9,15 +9,22 @@ from deep_logistics import cell_types
 
 class DeliveryPointGenerator:
 
-    def __init__(self, environment, override=None, seed=int(time.time()), frequency=0.04):
+    def __init__(self,
+                 environment,
+                 override=None,
+                 seed=int(time.time()),
+                 frequency=0.04):
+        """Set a random seed."""
         self.random = random.Random(seed)
+
+        """Set environment"""
         self.environment = environment
+
+        """Set frequency."""
         self.frequency = frequency
 
-        if override is not None:
-            self.data = [self.add_delivery_point(*data) for data in override]
-        else:
-            self.data = self.generate()
+        """Create delivery points."""
+        self.data = [self.add_delivery_point(*data) for data in override] if override is not None else self.generate()
 
     def roll(self, items, frequency):
         for item in items:

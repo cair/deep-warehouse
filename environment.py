@@ -8,8 +8,9 @@ from deep_logistics.agent import Agent
 from deep_logistics.delivery_points import DeliveryPointGenerator
 from deep_logistics.graphics import PygameGraphics
 from deep_logistics.grid import Grid
-from deep_logistics.scheduler import RandomScheduler
+from deep_logistics.scheduler import OnDemandScheduler
 from deep_logistics.spawn_points import SpawnPoints
+from deep_logistics.agent_storage import AgentStore
 
 
 class Environment(Process):
@@ -27,18 +28,22 @@ class Environment(Process):
                  tile_height=32,
                  tile_width=32,
                  ups=None,
-                 scheduler=RandomScheduler,
+                 scheduler=OnDemandScheduler,
                  ticks_per_second=10,
                  spawn_interval=1,
                  task_generate_interval=5,
                  task_assign_interval=1,
-                 delivery_points=None
+                 delivery_points=None,
+                 auto_respawn=False
                  ):
         super().__init__()
+
         self.width = width
         self.height = height
         self.depth = depth
         self.action_space = ActionSpace
+
+        self.auto_respawn = auto_respawn
 
         """Updates per second."""
         self.ups = ups
@@ -70,16 +75,13 @@ class Environment(Process):
         """The scheduler is a engine for scheduling tasks to agents."""
         self.scheduler = scheduler(self)
 
-        """Current selected agent."""
-        self.agent = None
-
         """List of all available agents."""
-        self.agents = []
-        if agent_class is None:
-            agent_class = Agent
+        self.agents = AgentStore(self)
+        self.agents.add_agent(
+            cls=agent_class,
+            n=agents
+        )
 
-        for _ in range(agents):
-            self.add_agent(agent_cls=agent_class)
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = PygameGraphics(environment=self,
@@ -90,27 +92,8 @@ class Environment(Process):
                                        has_window=draw_screen
                                        )
 
-    def add_agent(self, agent_cls):
-        idx = len(self.agents)
-        self.agents.append(agent_cls(self))
-        if self.agent is None:
-            self.agent = self.agents[idx]
-
-        return self.agents[idx]
-
-    def set_agent(self, agent):
-        """
-        Sets a specific agent to be main environment pov.
-        :param agent:
-        :return:
-        """
-        self.agent = agent
-
     def get_agent(self, idx):
         return self.agents[idx]
-
-    def step(self, action):
-        self.agent.do_action(action=action)
 
     def get_seconds(self):
         return self.tick_ps_counter * self.tick_ps_ratio
@@ -118,14 +101,12 @@ class Environment(Process):
     def update(self):
         self.tick_ps_counter += 1
         seconds = self.get_seconds()
-        if seconds % self.spawn_interval == 0:
-            self.deploy_agents()
 
         if seconds % self.task_assignment_interval == 0:
             self.task_assignment()
 
-        if seconds % self.task_assignment_interval == 0:
-            self.scheduler.generator.generate(init=False)
+        #if seconds % self.task_assignment_interval == 0:
+        #    self.scheduler.generator.generate(init=False)
 
         for agent in self.agents:
             agent.automate()
@@ -172,6 +153,11 @@ class Environment(Process):
         for agent in self.agents:
             if agent.task or agent.state in [Agent.DESTROYED, Agent.INACTIVE]:
                 """Agent already as a task assigned."""
-
                 continue
-            self.scheduler.give_task(agent)  # TODO - SJEKK ATTRIBUTE ERROR
+            self.scheduler.give_task(agent)
+
+    def reset(self):
+        for agent in self.agents:
+            agent.despawn()
+        self.deploy_agents()
+        self.task_assignment()

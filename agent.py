@@ -35,6 +35,7 @@ class Agent:
         self.speed = 0
         self.sensor_radius = 2
         r = self.sensor_radius
+
         self.proximity_coordinates = [
             (x, y) for y in range(-r, r + 1) for x in range(-r, r + 1) if x != 0 and y == 0 or y != 0 and x == 0
         ]
@@ -46,15 +47,11 @@ class Agent:
         self.action = None
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
-        self.action_decay_factor = 12  # 13 seems like a good parameter. 15 abit to much.
 
-        self.action_steps = {
-            ActionSpace.LEFT: 5,  # Number of ticks (Delay) to perform Action.Left
-            ActionSpace.RIGHT: 5,
-            ActionSpace.UP: 5,
-            ActionSpace.DOWN: 5,
+        self.AGENT_ACCELERATION = 0.33
+        self.AGENT_DEACCELERATION = 0.25
+        self.AGENT_MAX_SPEED = 1.0
 
-        }
 
         self.total_deliveries = 0
         self.total_pickups = 0
@@ -77,9 +74,8 @@ class Agent:
     @cell.setter
     def cell(self, x):
 
-        _cell = self.cell
-        if _cell:
-            _cell.occupant = None
+        if self.cell:
+            self.cell.occupant = None
 
         self._cell = x
 
@@ -100,9 +96,13 @@ class Agent:
             self.task.abort()
             self.task = None
 
-        self.state = Agent.DESTROYED
         self.reset_action()
         self.cell = None
+
+        self.state = Agent.DESTROYED
+
+    def is_terminal(self):
+        return self.state in Agent.IMMOBILE_STATES
 
     def reset_action(self):
         self.action = None
@@ -113,7 +113,8 @@ class Agent:
 
     def do_action(self, action):
         self.total_actions += 1
-        if self.state in Agent.IMMOBILE_STATES:
+
+        if self.is_terminal():
             return
 
         if action < 0 or action >= ActionSpace.N_ACTIONS:
@@ -124,20 +125,28 @@ class Agent:
 
         if action is ActionSpace.NOOP:
             return
+
         elif self.action is None or (self.action != action and self.state == Agent.IDLE):
             self.action = action
+
         elif self.action != action:
-            self._decay_acceleration()
+            #self._decrease_acceleration()
+            pass
         elif action == self.action:
-            self.action_intensity = min(Agent.MAX_THRUST, (1 / self.action_steps[action]) + self.action_intensity)
+            self._increase_acceleration()
+
     def update(self):
 
         if self.state is Agent.INACTIVE:
+            """Inactive state - Means the agent has not spawned yet, and cannot be updated."""
             return
         elif self.state is Agent.DESTROYED:
+            """Destroyed state - Means the agent should be set to inactive 
+            (Algorithms should have catched the destroyed state)."""
             self.state = Agent.INACTIVE
-
-        if self.action is None:
+            return
+        elif self.action is None:
+            """If the player has no action at all (Means that the agent is fully de-accelerated and action is unset)."""
             return
 
         action = self.action
@@ -157,29 +166,27 @@ class Agent:
         self.state = Agent.MOVING
 
         if return_code == Grid.MOVE_WALL_COLLISION:
-            #print("Wall crash")
             self.crash()
             return
         elif return_code == Grid.MOVE_AGENT_COLLISION:
             # TODO additional handling for other agent
-            #print("Agent Crash")
             self.environment.grid.relative_cell(self, x, y).occupant.crash()
             self.crash()
             
             return
 
         assert action == self.action
-        self._decay_acceleration()
+        self._decrease_acceleration()
 
         if self.action_intensity == 0:
             self.state = Agent.IDLE
 
-    def _decay_acceleration(self):
+    def _decrease_acceleration(self):
         """Decay acceleration / Thrust."""
-        self.action_intensity = max(
-            0,
-            self.action_intensity - ((1 / (self.action_steps[self.action] * self.action_decay_factor)) * self.environment.tick_ps_ratio)
-        )
+        self.action_intensity = max(0.0, self.action_intensity - self.AGENT_DEACCELERATION)
+
+    def _increase_acceleration(self):
+        self.action_intensity = min(1.0, self.action_intensity + self.AGENT_ACCELERATION)
 
     def get_proximity_sensors(self):
         left = 1000
@@ -220,6 +227,7 @@ class Agent:
 
         return [left, right, up, down]
 
+
 class InputAgent(Agent):
 
     def __init__(self, env):
@@ -228,6 +236,7 @@ class InputAgent(Agent):
 
     def add_event_callback(self, cb):
         self._cb.append(cb)
+
     def automate(self):
         events = pygame.event.get()
         for event in events:
@@ -245,12 +254,14 @@ class InputAgent(Agent):
                 for c in self._cb:
                     c()
 
+
 class ManhattanAgent(Agent):
 
     def __init__(self, env):
         super().__init__(env)
 
     def automate(self):
+        print(":D")
         if self.task:
             # +dY = Above
             # -dY = Below
