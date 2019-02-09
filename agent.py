@@ -130,7 +130,6 @@ class Agent:
             self._decay_acceleration()
         elif action == self.action:
             self.action_intensity = min(Agent.MAX_THRUST, (1 / self.action_steps[action]) + self.action_intensity)
-
     def update(self):
 
         if self.state is Agent.INACTIVE:
@@ -225,7 +224,10 @@ class InputAgent(Agent):
 
     def __init__(self, env):
         super().__init__(env)
+        self._cb = []
 
+    def add_event_callback(self, cb):
+        self._cb.append(cb)
     def automate(self):
         events = pygame.event.get()
         for event in events:
@@ -240,8 +242,8 @@ class InputAgent(Agent):
                     self.do_action(ActionSpace.UP)
                 if event.key == pygame.K_KP_ENTER:
                     self.do_action(ActionSpace.NOOP)
-
-                print(self.get_proximity_sensors())
+                for c in self._cb:
+                    c()
 
 class ManhattanAgent(Agent):
 
