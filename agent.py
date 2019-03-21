@@ -52,7 +52,6 @@ class Agent:
         self.AGENT_DEACCELERATION = 0.25
         self.AGENT_MAX_SPEED = 1.0
 
-
         self.total_deliveries = 0
         self.total_pickups = 0
         self.total_actions = 0
@@ -94,12 +93,16 @@ class Agent:
 
         if self.task:
             self.task.abort()
-            self.task = None
+        self.task = None
 
         self.reset_action()
         self.cell = None
 
         self.state = Agent.DESTROYED
+
+    def request_task(self):
+        if self.state not in Agent.IMMOBILE_STATES:
+            self.environment.scheduler.give_task(self)
 
     def is_terminal(self):
         return self.state in Agent.IMMOBILE_STATES
@@ -261,7 +264,7 @@ class ManhattanAgent(Agent):
         super().__init__(env)
 
     def automate(self):
-        print(":D")
+
         if self.task:
             # +dY = Above
             # -dY = Below

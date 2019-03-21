@@ -51,13 +51,15 @@ class PygameGraphics:
         """Construct grid."""
         for x in range(self.game_width):
             for y in range(self.game_height):
-                self.draw_sprite(self.SPRITE_CELL, x, y, setup=True)
 
-        for point in self.environment.delivery_points.data:
-            self.draw_sprite(self.SPRITE_DELIVERY_POINT, x=point.x, y=point.y, setup=True)
+                cell = self.environment.grid.cell(x, y)
 
-        for point in self.environment.spawn_points.data:
-            self.draw_sprite(self.SPRITE_SPAWN_POINT, x=point.x, y=point.y, setup=True)
+                if cell.type == cell_types.Empty:
+                    self.draw_sprite(self.SPRITE_CELL, x, y, setup=True)
+                elif cell.type == cell_types.SpawnPoint:
+                    self.draw_sprite(self.SPRITE_SPAWN_POINT, x=x, y=y, setup=True)
+                elif cell.type == cell_types.OrderDelivery:
+                    self.draw_sprite(self.SPRITE_DELIVERY_POINT, x=x, y=y, setup=True)
 
         if self.has_window:
             pygame.display.update()

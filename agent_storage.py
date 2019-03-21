@@ -16,7 +16,7 @@ class AgentStore:
     def __len__(self):
         return len(self.agents)
 
-    def add_agent(self, cls=None, n=1):
+    def add_agent(self, cls=Agent, n=1):
 
         if cls is None:
             cls = Agent

@@ -1,19 +1,17 @@
-from multiprocessing import Process, Array
-
 import time
 import numpy as np
-
 from deep_logistics.action_space import ActionSpace
-from deep_logistics.agent import Agent
+from deep_logistics.agent import ManhattanAgent, Agent
 from deep_logistics.delivery_points import DeliveryPointGenerator
 from deep_logistics.graphics import PygameGraphics
 from deep_logistics.grid import Grid
 from deep_logistics.scheduler import OnDemandScheduler
-from deep_logistics.spawn_points import SpawnPoints
+
 from deep_logistics.agent_storage import AgentStore
+from deep_logistics.spawn_strategy import RandomSpawnStrategy, LocationSpawnStrategy
 
 
-class Environment(Process):
+class Environment:
     """
     Environment Class, Remember that Numpy Operates with arr[y, x]
     """
@@ -22,19 +20,17 @@ class Environment(Process):
                  height,
                  width,
                  depth,
-                 agents=1,
-                 agent_class=Agent,
-                 draw_screen=False,
-                 tile_height=32,
-                 tile_width=32,
                  ups=None,
-                 scheduler=OnDemandScheduler,
                  ticks_per_second=10,
-                 spawn_interval=1,
-                 task_generate_interval=5,
-                 task_assign_interval=1,
-                 delivery_points=None,
-                 auto_respawn=False
+                 taxi_n=1,
+                 taxi_agent=ManhattanAgent,
+                 taxi_respawn=False,  # TODO - There is no case where this will happen in reality
+                 scheduler=OnDemandScheduler,
+                 delivery_locations=None,
+                 spawn_strategy=LocationSpawnStrategy,
+                 graphics_render=False,
+                 graphics_tile_width=32,
+                 graphics_tile_height=32
                  ):
         super().__init__()
 
@@ -43,7 +39,7 @@ class Environment(Process):
         self.depth = depth
         self.action_space = ActionSpace
 
-        self.auto_respawn = auto_respawn
+        self.taxi_respawn = taxi_respawn
 
         """Updates per second."""
         self.ups = ups
@@ -54,23 +50,14 @@ class Environment(Process):
         self.tick_ps_ratio = 1 / self.tick_ps
         self.tick_ps_counter = 0
 
-        """Spawn interval in game-seconds."""
-        self.spawn_interval = spawn_interval
-
-        """Task assignment interval in game-seconds."""
-        self.task_assignment_interval = task_assign_interval
-
-        """Task creation interval in game-seconds"""
-        self.task_generate_interval = task_generate_interval  # TODO use this?
-
         """The grid is the global internal state of all cells in the environment."""
         self.grid = Grid(width=width, height=height)
 
         """Spawn-points is the location where agent can spawn."""
-        self.spawn_points = SpawnPoints(self, seed=12)
+        self.spawn_points = spawn_strategy(self, seed=12)
 
         """Delivery points is a (TODO) static definition for where agents can deliver scheduled tasks."""
-        self.delivery_points = DeliveryPointGenerator(self, override=delivery_points, seed=555)
+        self.delivery_points = DeliveryPointGenerator(self, override=delivery_locations, seed=555)
 
         """The scheduler is a engine for scheduling tasks to agents."""
         self.scheduler = scheduler(self)
@@ -78,19 +65,21 @@ class Environment(Process):
         """List of all available agents."""
         self.agents = AgentStore(self)
         self.agents.add_agent(
-            cls=agent_class,
-            n=agents
+            cls=taxi_agent,
+            n=taxi_n
         )
-
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = PygameGraphics(environment=self,
                                        game_width=self.width,
                                        game_height=self.height,
-                                       cell_width=tile_width,
-                                       cell_height=tile_height,
-                                       has_window=draw_screen
+                                       cell_width=graphics_tile_width,
+                                       cell_height=graphics_tile_height,
+                                       has_window=graphics_render
                                        )
+
+        """Reset environment."""
+        self.reset()
 
     def get_agent(self, idx):
         return self.agents[idx]
@@ -98,22 +87,27 @@ class Environment(Process):
     def get_seconds(self):
         return self.tick_ps_counter * self.tick_ps_ratio
 
+    def is_terminal(self):
+        """Check if game is terminal TODO - This yields true if ANY of the agents has crashed."""
+        for a in self.agents:
+            if a.is_terminal():
+                return True
+        return False
+
     def update(self):
         self.tick_ps_counter += 1
-        seconds = self.get_seconds()
 
-        if seconds % self.task_assignment_interval == 0:
-            self.task_assignment()
-
-        #if seconds % self.task_assignment_interval == 0:
-        #    self.scheduler.generator.generate(init=False)
-
+        """Process agent s."""
         for agent in self.agents:
+
             agent.automate()
             agent.update()
+
             """Evaluate task objective."""
             if agent.task:
                 agent.task.evaluate()
+            else:
+                agent.request_task()
 
         if self.ups:
             time.sleep(self.ups_interval)
@@ -137,9 +131,11 @@ class Environment(Process):
         for agent in self.agents:
             if agent.state != Agent.INACTIVE:
                 continue
+
             spawn_points = self.spawn_points.get_available()
             if len(spawn_points) == 0:
                 """No available spawn points. """
+                raise RuntimeWarning("There is no available spawn points!")
                 continue
 
             spawn_point = np.random.choice(spawn_points)
