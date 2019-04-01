@@ -21,3 +21,5 @@ class ActionSpace:
     @staticmethod
     def sample():
         return random.randint(0, ActionSpace.N_ACTIONS)
+
+    n = 5

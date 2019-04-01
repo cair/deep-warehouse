@@ -37,7 +37,6 @@ class Environment:
         self.width = width
         self.height = height
         self.depth = depth
-        self.action_space = ActionSpace
 
         self.taxi_respawn = taxi_respawn
 
@@ -63,11 +62,17 @@ class Environment:
         self.scheduler = scheduler(self)
 
         """List of all available agents."""
+        if taxi_n < 1:
+            raise ValueError("There must be AT LEAST one initial agent!.")
         self.agents = AgentStore(self)
         self.agents.add_agent(
             cls=taxi_agent,
             n=taxi_n
         )
+        self.selected_agent = self.agents[0]
+
+        """Action Space + Observation space"""
+        self.action_space = ActionSpace
 
         """GUIComponents is a subclass used for rending the internal state of the environment."""
         self.graphics = PygameGraphics(environment=self,

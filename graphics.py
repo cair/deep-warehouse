@@ -1,7 +1,4 @@
 import pygame
-import SharedArray as sa
-
-
 from pygame import Surface
 
 from deep_logistics import cell_types
