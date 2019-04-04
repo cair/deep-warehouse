@@ -1,5 +1,3 @@
 opencv-python
-
-SharedArray
 pygame
 numpy
