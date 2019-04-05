@@ -1,0 +1,11 @@
+numpy
+matplotlib
+ray
+ray[debug]
+gym
+git+https://github.com/tensorforce/tensorforce.git
+tensorflow-gpu
+jupyterlab
+jupyter
+ipywidgets
+bokeh==0.13.0

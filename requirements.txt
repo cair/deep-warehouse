@@ -1,3 +1,10 @@
+#git+https://github.com/ray-project/ray.git#egg=ray&subdirectory=python
+tensorflow-gpu==v2.0.0-alpha0
+tensorflow==v2.0.0-alpha0
+numpy>=1.16.2
+pygame>=1.9.5
+
+
 opencv-python
-pygame
-numpy
+jupyter
+jupyterlab
