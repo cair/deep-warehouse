@@ -61,9 +61,9 @@ class PGPolicy(tf.keras.models.Model):
         self.training = True
         self.action_space = action_space
 
-        self.h_1 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype)
-        self.h_2 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype)
-        self.h_3 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype)
+        self.h_1 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
+        self.h_2 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
+        self.h_3 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
 
         # Probabilties of each action
         self.logits = tf.keras.layers.Dense(action_space, activation="softmax", name='policy_logits', dtype=self._dtype)
@@ -166,27 +166,42 @@ class PGAgent:
             observations = self.batch.b_obs
             actions = self.batch.b_act
             actions_logits = self.batch.b_act_logits
-            rewards = self._discounted_rewards(self.batch.b_rew)
+
+            rewards = self._discounted_rewards(self.batch.b_rew, self.batch.b_term)
             losses = self.policy.train(observations, actions, actions_logits, rewards)
             return losses
 
-    def _discounted_rewards(self, rewards):
+    def _discounted_rewards(self, rewards, terminals):
         """ take 1D float array of rewards and compute discounted reward """
-        r = rewards[::-1]
+
+        discounted_rewards = np.zeros_like(rewards)
+
+        cum_r = 0
+        for i in reversed(range(0, len(rewards))):
+            cum_r = rewards[i] + (cum_r * self.gamma) * (1 - terminals[i])
+
+            discounted_rewards[i] = cum_r
+
+        discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()  # TODO evaluate the need... Graphs etc.
+
+        return discounted_rewards
+        """r = rewards[::-1]
         a = [1, -self.gamma]
         b = [1]
         y = np.flip(signal.lfilter(b, a, x=r))
 
+      
         # https://statisticsbyjim.com/glossary/standardization/
         # Also: https://en.wikipedia.org/wiki/Feature_scaling
-        #y = (y - y.std()) / y.mean()
+        #y = (y - y.std()) / y.mean()"""
+
 
         # Baseline:
         # http://rail.eecs.berkeley.edu/deeprlcourse-fa17/f17docs/lecture_4_policy_gradient.pdf
         # Read above. migh be nice ^
         # https://stats.stackexchange.com/questions/357519/what-is-a-baseline-function-in-policy-gradients-methods
 
-        return y - rewards.mean()
+        return y  - rewards.mean()
 
 env = gym.make('CartPole-v0')
 agent = PGAgent(
