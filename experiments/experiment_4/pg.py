@@ -183,7 +183,7 @@ class PGAgent:
 
         # Baseline:
         # http://rail.eecs.berkeley.edu/deeprlcourse-fa17/f17docs/lecture_4_policy_gradient.pdf
-        # Read above. migh be nice ^ 
+        # Read above. migh be nice ^
         # https://stats.stackexchange.com/questions/357519/what-is-a-baseline-function-in-policy-gradients-methods
 
         return y - rewards.mean()
