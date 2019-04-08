@@ -1,9 +1,10 @@
-import time
+import os
 
 import tensorflow as tf
 import gym
 import numpy as np
-from scipy import signal
+from absl import flags
+FLAGS = flags
 
 
 class BatchHandler:
@@ -102,15 +103,28 @@ class PGPolicy(tf.keras.models.Model):
         return total_loss.numpy()
 
 
-class PGAgent:
+class Agent:
+
+    def __init__(self, logdir):
+
+        if logdir is not None:
+            print(dir(tf.train))
+            #global_step = tf.train.get_or_create_global_step()
+            logdir = os.path.join(logdir, self.__class__.__name__)
+            writer = tf.summary.create_file_writer(logdir)
+            writer.set_as_default()
+
+class PGAgent(Agent):
 
     def __init__(self,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  gamma=0.99,
                  batch_size=1,
-                 dtype=tf.float32
+                 dtype=tf.float32,
+                 logdir=None
                  ):
+        super(PGAgent, self).__init__(logdir=logdir)
 
         self.gamma = gamma
 
@@ -194,7 +208,8 @@ env = gym.make('CartPole-v0')
 agent = PGAgent(
     obs_space=env.observation_space,
     action_space=env.action_space.n,
-    batch_size=128
+    batch_size=128,
+    logdir="./tb/"
 )
 
 
