@@ -61,14 +61,14 @@ class PGPolicy(tf.keras.models.Model):
         self.training = True
         self.action_space = action_space
 
-        self.h_1 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
-        self.h_2 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
-        self.h_3 = tf.keras.layers.Dense(128, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
+        self.h_1 = tf.keras.layers.Dense(64, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
+        self.h_2 = tf.keras.layers.Dense(64, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
+        self.h_3 = tf.keras.layers.Dense(64, activation='relu', dtype=self._dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
 
         # Probabilties of each action
         self.logits = tf.keras.layers.Dense(action_space, activation="softmax", name='policy_logits', dtype=self._dtype)
 
-        self.optimizer = tf.keras.optimizers.Adam(lr=0.0001)  # TODO dynamic
+        self.optimizer = tf.keras.optimizers.Adam(lr=0.001)  # TODO dynamic
 
     def call(self, inputs):
         x = tf.convert_to_tensor(inputs, dtype=self._dtype)
@@ -77,42 +77,29 @@ class PGPolicy(tf.keras.models.Model):
         x = self.h_3(x)
         return self.logits(x)
 
-    def loss_logits(self, y_act_actual, y_adv_actual, y_pred):
-        # http://inoryy.com/post/tensorflow2-deep-reinforcement-learning/
-
-        #true_y = actions * advantages
-
-        #log_likelihood = tf.math.log(true_y * (true_y - pred_y) + (1 - true_y) * (true_y + pred_y))
-
-        #loss = tf.reduce_mean(log_likelihood)
-
-        #actions = tf.cast(actions, tf.int32)
-        #weighted_sparse_ce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-        #loss = weighted_sparse_ce(actions, pred_y, sample_weight=advantages)
-
-
-
-        return 0 # loss # - 0.001 * entropy_loss
+    def policy_loss(self, actions, discounted_rewards, predicted_logits):
+        actions_onehot = tf.keras.utils.to_categorical(actions, num_classes=self.action_space)
+        log_action_prob = tf.keras.backend.log(
+            tf.keras.backend.sum(predicted_logits * actions_onehot, axis=1)
+        )
+        loss = - log_action_prob * discounted_rewards
+        loss = tf.keras.backend.mean(loss)
+        return loss
 
     def train(self, observations, actions, actions_logits, discounted_rewards):
 
         with tf.GradientTape() as tape:
 
             predicted_logits = self(observations)
+            policy_loss = self.policy_loss(actions, discounted_rewards, predicted_logits)
 
-            actions_onehot = tf.keras.utils.to_categorical(actions, num_classes=self.action_space)
-            log_action_prob = tf.keras.backend.log(
-                tf.keras.backend.sum(predicted_logits * actions_onehot, axis=1)
-            )
-            loss = - log_action_prob * discounted_rewards
-            loss = tf.keras.backend.mean(loss)
+            total_loss = policy_loss
 
-
-            grads = tape.gradient(loss, self.trainable_variables)
+            grads = tape.gradient(total_loss, self.trainable_variables)
 
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
 
-        return loss.numpy()
+        return total_loss.numpy()
 
 
 class PGAgent:
