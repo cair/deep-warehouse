@@ -1,3 +1,4 @@
+import datetime
 import os
 
 import tensorflow as tf
@@ -10,11 +11,12 @@ FLAGS = flags
 class BatchHandler:
 
     def __init__(self,
+                 agent,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  batch_size,
                  dtype=tf.float32):
-
+        self.agent = agent
         self.action_space = action_space
 
         # Convert dtype from tf to numpy
@@ -24,26 +26,33 @@ class BatchHandler:
             dtype = np.float16
 
         self.b_obs = np.zeros(shape=(batch_size, ) + obs_space.shape, dtype=dtype)
-        self.b_act = np.zeros(shape=(batch_size,), dtype=dtype)
+        self.b_act = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_act_logits = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_rew = np.zeros(shape=(batch_size,), dtype=dtype)
         self.b_term = np.zeros(shape=(batch_size,), dtype=np.int8)
 
         self.batch_size = batch_size
         self.counter = 0
+        self.terminal_step_counter = 0
 
     def add(self, obs=None, action=None, action_logits=None, reward=None, terminal=None, increment=False):
 
         if obs is not None:
             self.b_obs[self.counter] = obs
         if action is not None:
-            self.b_act[self.counter] = action
+            self.b_act[self.counter][:] = 0
+            self.b_act[self.counter][action] = 1
         if action_logits is not None:
             self.b_act_logits[self.counter] = action_logits
         if reward is not None:
             self.b_rew[self.counter] = reward
         if terminal is not None:
             self.b_term[self.counter] = terminal
+            if terminal:
+                self.agent.summary("steps", self.terminal_step_counter)
+                self.terminal_step_counter = 0
+            self.terminal_step_counter += 1
+
 
         if increment:
             if self.counter == self.batch_size - 1:
@@ -58,6 +67,7 @@ class PGPolicy(tf.keras.models.Model):
 
     def __init__(self, action_space: gym.spaces.Discrete, dtype=tf.float32):
         super(PGPolicy, self).__init__()
+
         self._dtype = dtype
         self.training = True
         self.action_space = action_space
@@ -69,8 +79,6 @@ class PGPolicy(tf.keras.models.Model):
         # Probabilties of each action
         self.logits = tf.keras.layers.Dense(action_space, activation="softmax", name='policy_logits', dtype=self._dtype)
 
-        self.optimizer = tf.keras.optimizers.Adam(lr=0.001)  # TODO dynamic
-
     def call(self, inputs):
         x = tf.convert_to_tensor(inputs, dtype=self._dtype)
         x = self.h_1(x)
@@ -78,41 +86,48 @@ class PGPolicy(tf.keras.models.Model):
         x = self.h_3(x)
         return self.logits(x)
 
-    def policy_loss(self, actions, discounted_rewards, predicted_logits):
-        actions_onehot = tf.keras.utils.to_categorical(actions, num_classes=self.action_space)
+    def policy_loss(self, actions_onehot, discounted_rewards, predicted_logits):
         log_action_prob = tf.keras.backend.log(
             tf.keras.backend.sum(predicted_logits * actions_onehot, axis=1)
         )
         loss = - log_action_prob * discounted_rewards
         loss = tf.keras.backend.mean(loss)
+
         return loss
-
-    def train(self, observations, actions, actions_logits, discounted_rewards):
-
-        with tf.GradientTape() as tape:
-
-            predicted_logits = self(observations)
-            policy_loss = self.policy_loss(actions, discounted_rewards, predicted_logits)
-
-            total_loss = policy_loss
-
-            grads = tape.gradient(total_loss, self.trainable_variables)
-
-        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
-
-        return total_loss.numpy()
 
 
 class Agent:
 
-    def __init__(self, logdir):
+    def __init__(self, policy, logging=None, optimizer=tf.keras.optimizers.Adam(lr=0.001)):
+        self.policy = policy
+        self.optimizer = optimizer
+        self.name = self.__class__.__name__
 
-        if logdir is not None:
-            print(dir(tf.train))
-            #global_step = tf.train.get_or_create_global_step()
-            logdir = os.path.join(logdir, self.__class__.__name__)
+        if logging is not None:
+            logdir = os.path.join(logging["path"], self.name + "_%s" % (datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")))
             writer = tf.summary.create_file_writer(logdir)
             writer.set_as_default()
+
+    @tf.function
+    def train(self, observations, actions, discounted_rewards):
+
+        with tf.GradientTape() as tape:
+            predicted_logits = self.policy(observations)
+            policy_loss = self.policy.policy_loss(actions, discounted_rewards, predicted_logits)
+            total_loss = policy_loss
+
+        grads = tape.gradient(total_loss, self.policy.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.policy.trainable_variables))
+
+        # Update metrics
+        self.summary("policy_loss", policy_loss)
+        self.summary("total_loss", total_loss)
+
+        return total_loss
+
+    def summary(self, name, data):
+        tf.summary.scalar("%s/%s" % (self.name, name), data, self.optimizer.iterations)
+
 
 class PGAgent(Agent):
 
@@ -122,20 +137,25 @@ class PGAgent(Agent):
                  gamma=0.99,
                  batch_size=1,
                  dtype=tf.float32,
-                 logdir=None
+                 logging=dict(
+                     interval=10,
+                     path="./tb/"
+                 )
                  ):
-        super(PGAgent, self).__init__(logdir=logdir)
 
-        self.gamma = gamma
-
-        self.action_space = action_space
-
-        self.policy = PGPolicy(
-            action_space=action_space,
-            dtype=dtype
+        super(PGAgent, self).__init__(
+            policy=PGPolicy(
+                action_space=action_space,
+                dtype=dtype
+            ),
+            logging=logging
         )
 
+        self.gamma = gamma
+        self.action_space = action_space
+
         self.batch = BatchHandler(
+            agent=self,
             obs_space=obs_space,
             action_space=action_space,
             batch_size=batch_size,
@@ -166,10 +186,9 @@ class PGAgent(Agent):
         if do_train:
             observations = self.batch.b_obs
             actions = self.batch.b_act
-            actions_logits = self.batch.b_act_logits
 
             rewards = self._discounted_rewards(self.batch.b_rew, self.batch.b_term)
-            losses = self.policy.train(observations, actions, actions_logits, rewards)
+            losses = self.train(observations, actions, rewards)
             return losses
 
     def _discounted_rewards(self, rewards, terminals):
@@ -183,57 +202,44 @@ class PGAgent(Agent):
 
             discounted_rewards[i] = cum_r
 
-        discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()  # TODO evaluate the need... Graphs etc.
+        discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()
 
         return discounted_rewards
-        """r = rewards[::-1]
-        a = [1, -self.gamma]
-        b = [1]
-        y = np.flip(signal.lfilter(b, a, x=r))
-
-      
-        # https://statisticsbyjim.com/glossary/standardization/
-        # Also: https://en.wikipedia.org/wiki/Feature_scaling
-        #y = (y - y.std()) / y.mean()"""
 
 
-        # Baseline:
-        # http://rail.eecs.berkeley.edu/deeprlcourse-fa17/f17docs/lecture_4_policy_gradient.pdf
-        # Read above. migh be nice ^
-        # https://stats.stackexchange.com/questions/357519/what-is-a-baseline-function-in-policy-gradients-methods
+if __name__ == "__main__":
 
-        return y  - rewards.mean()
+    env = gym.make('CartPole-v0')
+    agent = PGAgent(
+        obs_space=env.observation_space,
+        action_space=env.action_space.n,
+        batch_size=128,
+        logging=dict(
+            interval=10,
+            path="./tb/"
+        )
+    )
 
-env = gym.make('CartPole-v0')
-agent = PGAgent(
-    obs_space=env.observation_space,
-    action_space=env.action_space.n,
-    batch_size=128,
-    logdir="./tb/"
-)
+    for e in range(30000):
 
+        steps = 0
+        terminal = False
+        obs = env.reset()
+        cum_loss = 0
+        loss_n = 0
 
+        while not terminal:
 
-for e in range(30000):
+            action = agent.predict(obs[None, :])
 
-    steps = 0
-    terminal = False
-    obs = env.reset()
-    cum_loss = 0
-    loss_n = 0
+            obs, reward, terminal, info = env.step(action)
+            reward = 0 if terminal else reward
 
-    while not terminal:
+            losses = agent.observe(reward, terminal)
+            if losses is not None:
+                loss_n += 1
+                cum_loss += losses
+            steps += 1
 
-        action = agent.predict(obs[None, :])
-
-        obs, reward, terminal, info = env.step(action)
-        reward = 0 if terminal else reward
-
-        losses = agent.observe(reward, terminal)
-        if losses is not None:
-            loss_n += 1
-            cum_loss += losses
-        steps += 1
-
-    if loss_n != 0:
-        print("E: %s, Steps %s, Loss: %s" % (e, steps, cum_loss / (0.00000001 + loss_n)))
+        if loss_n != 0:
+            print("E: %s, Steps %s, Loss: %s" % (e, steps, cum_loss / (0.00000001 + loss_n)))
