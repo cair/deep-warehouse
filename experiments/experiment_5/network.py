@@ -3,7 +3,7 @@ import tensorflow as tf
 
 class PGPolicy(tf.keras.models.Model):
 
-    def __init__(self, action_space, dtype=tf.float32):
+    def __init__(self, action_space, dtype):
         super(PGPolicy, self).__init__()
 
         self._dtype = dtype
@@ -17,9 +17,14 @@ class PGPolicy(tf.keras.models.Model):
         # Probabilties of each action
         self.logits = tf.keras.layers.Dense(action_space, activation="softmax", name='policy_logits', dtype=self._dtype)
 
-    def call(self, inputs):
-        x = tf.convert_to_tensor(inputs, dtype=self._dtype)
+    def shared(self, x):
         x = self.h_1(x)
         x = self.h_2(x)
         x = self.h_3(x)
-        return self.logits(x)
+        return x
+
+    def call(self, inputs):
+        x = self.shared(inputs)
+        return dict(
+            policy_logits=self.logits(x)
+        )

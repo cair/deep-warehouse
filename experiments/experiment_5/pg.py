@@ -14,47 +14,62 @@ FLAGS = flags
 logging.set_verbosity(logging.DEBUG)
 
 
-class PGAgent(Agent):
+class REINFORCE(Agent):
 
     def __init__(self,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  gamma=0.99,
+                 baseline=None,
                  batch_size=1,
                  dtype=tf.float32,
+                 policy=None,
+                 name_prefix="",
                  tensorboard_enabled=True,
                  tensorboard_path="./tb/",
                  ):
+        if policy is None:
+            policy = PGPolicy(
+                action_space=action_space,
+                dtype=dtype
+            )
 
-        super(PGAgent, self).__init__(
+        super(REINFORCE, self).__init__(
             obs_space=obs_space,
             action_space=action_space,
             batch_size=batch_size,
             dtype=dtype,
-            policy=PGPolicy(
-                action_space=action_space,
-                dtype=dtype
-            ),
+            policy=policy,
             tensorboard_enabled=tensorboard_enabled,
-            tensorboard_path=tensorboard_path
+            tensorboard_path=tensorboard_path,
+            name_prefix=name_prefix
         )
         self.gamma = gamma
+        self.baseline = baseline
 
-        self.add_loss("policy_loss", lambda y: self.policy_loss(self.batch.b_act, self.G(self.batch.b_rew, self.batch.b_term), y))
+        self.add_loss("policy_loss",
+                      lambda y: self.policy_loss(
+                          self.batch.b_act,
+                          self.G(self.batch.b_rew, self.batch.b_term),
+                          y["policy_logits"]
+                      ))
 
     def reset(self):
         self.batch.counter = 0
 
-    def predict(self, observation):
-        action_logits = self.policy.predict(observation)
+    def get_action(self, observation):
+        prediction = super().predict(observation)
+        policy_logits = prediction["policy_logits"]
 
-        action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(action_logits).numpy())
 
-        self.batch.add(obs=observation, action_logits=action_logits, action=action_sample)
+        action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(policy_logits).numpy())
+
+        self.batch.add(obs=observation, action_logits=policy_logits, action=action_sample)
+
         return action_sample
 
-    def observe(self, reward, terminal):
-        super().observe(reward, terminal)
+    def observe(self, obs1, reward, terminal):
+        super().observe(obs1, reward, terminal)
 
         if self.batch.counter == 0:
             s = time.time()
@@ -76,19 +91,26 @@ class PGAgent(Agent):
     """
 
     def G(self, rewards, terminals):
-        """ take 1D float array of rewards and compute discounted reward """
-
+        # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
         discounted_rewards = np.zeros_like(rewards)
 
         cum_r = 0
-        for i in reversed(range(0, len(rewards))):
-            cum_r = rewards[i] + (cum_r * self.gamma) * (1 - terminals[i])
+        l = len(rewards)
+        for i in reversed(range(0, l)):
+            cum_r = rewards[i] + (cum_r * self.gamma * (1 - terminals[i]))
 
             discounted_rewards[i] = cum_r
 
         discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()
+        np.nan_to_num(discounted_rewards, copy=False)
 
-        return discounted_rewards
+        """Baseline implementations."""
+        if self.baseline == "reward_mean":
+            baseline = rewards.mean()
+        else:
+            baseline = 0
+
+        return discounted_rewards - baseline
 
     """
     A: one hot vectors of actions
@@ -104,5 +126,6 @@ class PGAgent(Agent):
         loss = tf.keras.backend.mean(loss)
 
         return loss
+
 
 

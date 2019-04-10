@@ -17,8 +17,11 @@ class Agent:
                  policy,
                  tensorboard_enabled,
                  tensorboard_path,
-                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                 optimizer=tf.keras.optimizers.Adam(lr=0.001),
+                 name_prefix=""
                  ):
+        self.last_predict = None
+        self.dtype = dtype
         self.loss_fns = {}
         self.action_space = action_space
         self.metrics = Metrics()
@@ -35,8 +38,11 @@ class Agent:
 
         if tensorboard_enabled:
             logdir = os.path.join(
-                tensorboard_path,
-                self.name + "_%s" % (datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+                tensorboard_path, "%s-%s_%s" %
+                                  (
+                                          self.name,
+                                          name_prefix,
+                                          datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
             )
             writer = tf.summary.create_file_writer(logdir)
             writer.set_as_default()
@@ -44,8 +50,24 @@ class Agent:
     def add_loss(self, name, lambda_fn):
         self.loss_fns[name] = lambda_fn
 
-    def observe(self, reward, terminal):
+    #@tf.function
+    def predict(self, inputs):
+        inputs = tf.cast(inputs, dtype=self.dtype)
+        self.last_predict = self.policy(inputs)
+        return self.last_predict
 
+    def get_action(self, inputs):
+        raise NotImplementedError("get_action is not implemented in Agent base class.")
+
+    def observe(self, obs1, reward, terminal):
+        """
+        Observe the resulting transition
+        :param obs1: The next state s_t+1
+        :param reward: Reward yielded back from R_t = S_t(a_t)
+        :param terminal: T_t = S_t(a_t) (Not really RL thing, but we keep track of Terminal states
+        modify reward in some cases.
+        :return:
+        """
         if terminal:
             self.metrics.episode += 1
             self.metrics.steps(self.metrics.steps_counter)
@@ -54,7 +76,8 @@ class Agent:
             self.metrics.steps_counter += 1
 
         return self.batch.add(
-            reward=tf.cast(reward, tf.float32),
+            obs1=tf.cast(obs1, dtype=self.dtype),
+            reward=tf.cast(reward, dtype=self.dtype),
             terminal=tf.cast(terminal, tf.bool),
             increment=True
         )
@@ -62,7 +85,9 @@ class Agent:
     def train(self, observations):
 
         with tf.GradientTape() as tape:
+
             predicted_logits = self.policy(observations)
+
 
             total_loss = 0
             for loss_name, loss_fn in self.loss_fns.items():

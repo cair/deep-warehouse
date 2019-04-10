@@ -21,6 +21,7 @@ class BatchHandler:
             dtype = np.float16
 
         self.b_obs = np.zeros(shape=(batch_size, ) + obs_space.shape, dtype=dtype)
+        self.b_obs1 = np.zeros(shape=(batch_size, ) + obs_space.shape, dtype=dtype)
         self.b_act = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_act_logits = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_rew = np.zeros(shape=(batch_size,), dtype=dtype)
@@ -30,10 +31,12 @@ class BatchHandler:
         self.counter = 0
         self.terminal_step_counter = 0
 
-    def add(self, obs=None, action=None, action_logits=None, reward=None, terminal=None, increment=False):
+    def add(self, obs=None, obs1=None, action=None, action_logits=None, reward=None, terminal=None, increment=False):
 
         if obs is not None:
             self.b_obs[self.counter] = obs
+        if obs1 is not None:
+            self.b_obs1[self.counter] = obs1
         if action is not None:
             self.b_act[self.counter][:] = 0
             self.b_act[self.counter][action] = 1
