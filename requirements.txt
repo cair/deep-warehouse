@@ -1,6 +1,6 @@
 #git+https://github.com/ray-project/ray.git#egg=ray&subdirectory=python
 tensorflow==2.0.0-alpha0
-#tensorflow-gpu==2.0.0-alpha0
+tensorflow-gpu==2.0.0-alpha0
 numpy>=1.16.2
 pygame>=1.9.5
 scipy

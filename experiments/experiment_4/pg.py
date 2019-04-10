@@ -1,11 +1,14 @@
 import datetime
 import os
 
+#os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import tensorflow as tf
 import gym
 import numpy as np
-from absl import flags
+from absl import flags, logging
+import time
 FLAGS = flags
+logging.set_verbosity(logging.DEBUG)
 
 
 class BatchHandler:
@@ -53,7 +56,6 @@ class BatchHandler:
                 self.terminal_step_counter = 0
             self.terminal_step_counter += 1
 
-
         if increment:
             if self.counter == self.batch_size - 1:
                 self.counter = 0
@@ -96,17 +98,51 @@ class PGPolicy(tf.keras.models.Model):
         return loss
 
 
+class Metrics:
+
+    def __init__(self):
+        self.total_loss = tf.keras.metrics.Mean(name="total_loss", dtype=tf.float32)
+        self.training_time = tf.keras.metrics.Mean(name="training_time", dtype=tf.float32)
+
+
 class Agent:
 
-    def __init__(self, policy, logging=None, optimizer=tf.keras.optimizers.Adam(lr=0.001)):
+    def __init__(self,
+                 obs_space: gym.spaces.Box,
+                 action_space: gym.spaces.Discrete,
+                 batch_size: int,
+                 dtype,
+                 policy,
+                 tensorboard_enabled,
+                 tensorboard_path,
+                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                 ):
+        self.metrics = Metrics()
         self.policy = policy
         self.optimizer = optimizer
         self.name = self.__class__.__name__
+        self.batch = BatchHandler(
+            agent=self,
+            obs_space=obs_space,
+            action_space=action_space,
+            batch_size=batch_size,
+            dtype=dtype
+        )
 
-        if logging is not None:
-            logdir = os.path.join(logging["path"], self.name + "_%s" % (datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")))
+        if tensorboard_enabled:
+            logdir = os.path.join(
+                tensorboard_path,
+                self.name + "_%s" % (datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+            )
             writer = tf.summary.create_file_writer(logdir)
             writer.set_as_default()
+
+    def observe(self, reward, terminal):
+        return self.batch.add(
+            reward=tf.cast(reward, tf.float32),
+            terminal=tf.cast(terminal, tf.bool),
+            increment=True
+        )
 
     @tf.function
     def train(self, observations, actions, discounted_rewards):
@@ -137,31 +173,25 @@ class PGAgent(Agent):
                  gamma=0.99,
                  batch_size=1,
                  dtype=tf.float32,
-                 logging=dict(
-                     interval=10,
-                     path="./tb/"
-                 )
+                 tensorboard_enabled=True,
+                 tensorboard_path="./tb/",
                  ):
 
         super(PGAgent, self).__init__(
+            obs_space=obs_space,
+            action_space=action_space,
+            batch_size=batch_size,
+            dtype=dtype,
             policy=PGPolicy(
                 action_space=action_space,
                 dtype=dtype
             ),
-            logging=logging
+            tensorboard_enabled=tensorboard_enabled,
+            tensorboard_path=tensorboard_path
         )
 
         self.gamma = gamma
         self.action_space = action_space
-
-        self.batch = BatchHandler(
-            agent=self,
-            obs_space=obs_space,
-            action_space=action_space,
-            batch_size=batch_size,
-            dtype=dtype
-        )
-        self.pred_steps = 0
 
     def reset(self):
         self.batch.counter = 0
@@ -169,29 +199,36 @@ class PGAgent(Agent):
     def predict(self, observation):
         action_logits = self.policy.predict(observation)
 
-        #action_sample = tf.argmax(tf.squeeze(action_logits)).numpy()
-        #action_sample = tf.squeeze(tf.random.categorical(action_logits, 1)).numpy()
-
         action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(action_logits).numpy())
 
         self.batch.add(obs=observation, action_logits=action_logits, action=action_sample)
-        self.pred_steps += 1
         return action_sample
 
     def observe(self, reward, terminal):
+        super().observe(reward, terminal)
 
-        do_train = self.batch.add(reward=reward, terminal=terminal, increment=True)
+        if self.batch.counter == 0:
 
-        # Batch is full.
-        if do_train:
-            observations = self.batch.b_obs
-            actions = self.batch.b_act
+            s = time.time()
+            loss = self.train(
+                self.batch.b_obs,
+                self.batch.b_act,
+                self.G(
+                    self.batch.b_rew,
+                    self.batch.b_term
+                )
+            )
+            self.metrics.total_loss(loss)
+            self.metrics.training_time(time.time() - s)
 
-            rewards = self._discounted_rewards(self.batch.b_rew, self.batch.b_term)
-            losses = self.train(observations, actions, rewards)
-            return losses
+            logging.debug("Training loss %f | Time Elapsed: %f", self.metrics.total_loss.result(), self.metrics.training_time.result())
+            self.summary("training_time", self.metrics.training_time.result())
+            self.summary("training_loss_smooth", self.metrics.total_loss.result())
 
-    def _discounted_rewards(self, rewards, terminals):
+    """
+    # G is commonly refered to as the cumulative discounted rewards
+    """
+    def G(self, rewards, terminals):
         """ take 1D float array of rewards and compute discounted reward """
 
         discounted_rewards = np.zeros_like(rewards)
@@ -214,10 +251,8 @@ if __name__ == "__main__":
         obs_space=env.observation_space,
         action_space=env.action_space.n,
         batch_size=128,
-        logging=dict(
-            interval=10,
-            path="./tb/"
-        )
+        tensorboard_enabled=True,
+        tensorboard_path="./tb/"
     )
 
     for e in range(30000):
@@ -229,17 +264,8 @@ if __name__ == "__main__":
         loss_n = 0
 
         while not terminal:
-
             action = agent.predict(obs[None, :])
-
             obs, reward, terminal, info = env.step(action)
             reward = 0 if terminal else reward
-
-            losses = agent.observe(reward, terminal)
-            if losses is not None:
-                loss_n += 1
-                cum_loss += losses
+            agent.observe(reward, terminal)
             steps += 1
-
-        if loss_n != 0:
-            print("E: %s, Steps %s, Loss: %s" % (e, steps, cum_loss / (0.00000001 + loss_n)))
