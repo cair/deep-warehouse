@@ -14,7 +14,7 @@ class Agent:
                  action_space: gym.spaces.Discrete,
                  batch_size: int,
                  dtype,
-                 policy,
+                 policies,
                  tensorboard_enabled,
                  tensorboard_path,
                  optimizer=tf.keras.optimizers.Adam(lr=0.001),
@@ -24,8 +24,20 @@ class Agent:
         self.dtype = dtype
         self.loss_fns = {}
         self.action_space = action_space
-        self.metrics = Metrics()
-        self.policy = policy
+        self.metrics = Metrics(self)
+        self.policies = policies
+
+        """Find all policies with inference flag set. Ensure that its only 1 and assign as the inference 
+        policy. """
+
+        self.inference_policy = [x for k, x in self.policies.items() if x["inference"]]
+        if len(self.inference_policy) != 1:
+            raise ValueError("There can only be 1 policy with the flag training=False.")
+        self.inference_policy = self.inference_policy[0]
+
+        """This list contains names of policies that should be trained"""
+        self.training_policies = [x for k, x in self.policies.items() if x["training"]]
+
         self.optimizer = optimizer
         self.name = self.__class__.__name__
         self.batch = BatchHandler(
@@ -40,9 +52,9 @@ class Agent:
             logdir = os.path.join(
                 tensorboard_path, "%s-%s_%s" %
                                   (
-                                          self.name,
-                                          name_prefix,
-                                          datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+                                      self.name,
+                                      name_prefix,
+                                      datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
             )
             writer = tf.summary.create_file_writer(logdir)
             writer.set_as_default()
@@ -50,10 +62,15 @@ class Agent:
     def add_loss(self, name, lambda_fn):
         self.loss_fns[name] = lambda_fn
 
-    #@tf.function
-    def predict(self, inputs):
+    # @tf.function
+    def predict(self, inputs, policy="target"):
         inputs = tf.cast(inputs, dtype=self.dtype)
-        self.last_predict = self.policy(inputs)
+
+        try:
+            self.last_predict = self.policies[policy]["model"](inputs)
+        except KeyError:
+            raise ValueError("There is no policy with the name %s" % policy)
+
         return self.last_predict
 
     def get_action(self, inputs):
@@ -68,12 +85,11 @@ class Agent:
         modify reward in some cases.
         :return:
         """
+        self.metrics.add("steps", 1)
+        self.metrics.add("reward", reward)
+
         if terminal:
-            self.metrics.episode += 1
-            self.metrics.steps(self.metrics.steps_counter)
-            self.metrics.steps_counter = 0
-        else:
-            self.metrics.steps_counter += 1
+            self.metrics.summarize()
 
         return self.batch.add(
             obs1=tf.cast(obs1, dtype=self.dtype),
@@ -83,25 +99,23 @@ class Agent:
         )
 
     def train(self, observations):
+        total_loss = 0
 
-        with tf.GradientTape() as tape:
+        for policy_spec in self.training_policies:
+            policy = policy_spec["model"]
 
-            predicted_logits = self.policy(observations)
+            with tf.GradientTape() as tape:
+                predicted_logits = policy(observations)
 
+                for loss_name, loss_fn in self.loss_fns.items():
+                    loss = loss_fn(predicted_logits)
+                    self.metrics.add(loss_name, loss, type="Mean")
+                    total_loss += loss
 
-            total_loss = 0
-            for loss_name, loss_fn in self.loss_fns.items():
-                loss = loss_fn(predicted_logits)
-                self.summary(loss_name, loss)
-                total_loss += loss
+            grads = tape.gradient(total_loss, policy.trainable_variables)
+            self.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
-        grads = tape.gradient(total_loss, self.policy.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.policy.trainable_variables))
-
-        self.summary("total_loss", total_loss)
+        self.metrics.add("iterations_per_episode", 1, "Sum")
+        self.metrics.add("total_loss", total_loss, "Mean")
 
         return total_loss
-
-    def summary(self, name, data):
-        tf.summary.scalar("%s/%s" % (self.name, name), data, self.optimizer.iterations)
-

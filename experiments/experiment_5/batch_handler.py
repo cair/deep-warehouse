@@ -47,7 +47,6 @@ class BatchHandler:
         if terminal is not None:
             self.b_term[self.counter] = terminal
             if terminal:
-                self.agent.summary("steps", self.terminal_step_counter)
                 self.terminal_step_counter = 0
             self.terminal_step_counter += 1
 

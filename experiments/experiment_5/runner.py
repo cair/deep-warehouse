@@ -41,7 +41,7 @@ if __name__ == "__main__":
         submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
-            batch_size=1,  # Important
+            batch_size=32,  # Important
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
             name_prefix="TDOneStep",

@@ -9,6 +9,7 @@ class A2CPolicy(PGPolicy):
     def __init__(self, action_space, dtype):
         super().__init__(action_space, dtype)
 
+        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=dtype)
         self.state_value = tf.keras.layers.Dense(1,
                                                  activation="linear",
                                                  name="state_value",
@@ -18,7 +19,7 @@ class A2CPolicy(PGPolicy):
     def call(self, inputs):
         data = super().call(inputs)
         data.update(dict(
-            action_value=self.state_value(self.shared(inputs))
+            action_value=self.state_value(self.h_4(self.shared(inputs)))
         ))
         return data
 
@@ -41,9 +42,15 @@ class A2C(REINFORCE):
             gamma=gamma,
             batch_size=batch_size,
             dtype=dtype,
-            policy=A2CPolicy(
-              action_space=action_space,
-              dtype=dtype
+            policies=dict(
+                target=dict(
+                    model=A2CPolicy(
+                        action_space=action_space,
+                        dtype=dtype
+                    ),
+                    training=True,
+                    inference=True
+                )
             ),
             tensorboard_enabled=tensorboard_enabled,
             tensorboard_path=tensorboard_path,
@@ -77,5 +84,4 @@ class A2C(REINFORCE):
         """
         loss = tf.keras.losses.mean_squared_error(returns, predicted)
         loss = tf.keras.backend.mean(loss)
-        # TODO loss must be logged.
         return loss

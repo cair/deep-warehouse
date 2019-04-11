@@ -23,23 +23,26 @@ class REINFORCE(Agent):
                  baseline=None,
                  batch_size=1,
                  dtype=tf.float32,
-                 policy=None,
+                 policies=None,
                  name_prefix="",
                  tensorboard_enabled=True,
                  tensorboard_path="./tb/",
                  ):
-        if policy is None:
-            policy = PGPolicy(
-                action_space=action_space,
-                dtype=dtype
-            )
+
+        if policies is None:
+            policies = {
+                "target": PGPolicy(
+                    action_space=action_space,
+                    dtype=dtype
+                )
+            }
 
         super(REINFORCE, self).__init__(
             obs_space=obs_space,
             action_space=action_space,
             batch_size=batch_size,
             dtype=dtype,
-            policy=policy,
+            policies=policies,
             tensorboard_enabled=tensorboard_enabled,
             tensorboard_path=tensorboard_path,
             name_prefix=name_prefix
@@ -74,17 +77,15 @@ class REINFORCE(Agent):
         if self.batch.counter == 0:
             s = time.time()
             loss = self.train(self.batch.b_obs)
-            self.metrics.total_loss(loss)
-            self.metrics.training_time(time.time() - s)
 
+            self.metrics.add("backprop_time", time.time() - s)
+
+            """
             logging.debug("Episode %d | Avg_Steps: %f | Training loss %f | Time Elapsed: %f",
                           self.metrics.episode,
-                          self.metrics.steps.result(),
+                          self.metrics.result(),
                           self.metrics.total_loss.result(),
-                          self.metrics.training_time.result())
-
-            self.summary("training_time", self.metrics.training_time.result())
-            self.summary("training_loss_smooth", self.metrics.total_loss.result())
+                          self.metrics.training_time.result())"""
 
     """
     # G is commonly refered to as the cumulative discounted rewards
