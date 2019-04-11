@@ -20,7 +20,10 @@ class Metrics:
             if isinstance(metric, tf.keras.metrics.Mean):
                 continue
             metric.reset_states()
-        
+
+    def get(self, name):
+        return self.metrics[name]
+
     def summarize(self):
         res_str = "Episode: %s | " % self.episode
         for k, metric in self.metrics.items():
@@ -39,4 +42,4 @@ class Metrics:
         self.metrics[name](value)
 
     def summary(self, name, data):
-        tf.summary.scalar("%s/%s" % (self.agent.name, name), data, self.episode)
+        tf.summary.scalar("sysx/%s" % name, data, self.episode)

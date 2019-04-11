@@ -29,20 +29,23 @@ class REINFORCE(Agent):
                  tensorboard_path="./tb/",
                  ):
 
-        if policies is None:
-            policies = {
-                "target": PGPolicy(
-                    action_space=action_space,
-                    dtype=dtype
-                )
-            }
-
         super(REINFORCE, self).__init__(
             obs_space=obs_space,
             action_space=action_space,
             batch_size=batch_size,
             dtype=dtype,
-            policies=policies,
+            policies=policies if policies else dict(
+                target=dict(
+                    model=PGPolicy,
+                    args=dict(
+                        action_space=action_space,
+                        dtype=dtype,
+                        optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                    ),
+                    training=True,
+                    inference=True
+                )
+            ),
             tensorboard_enabled=tensorboard_enabled,
             tensorboard_path=tensorboard_path,
             name_prefix=name_prefix
@@ -79,13 +82,6 @@ class REINFORCE(Agent):
             loss = self.train(self.batch.b_obs)
 
             self.metrics.add("backprop_time", time.time() - s)
-
-            """
-            logging.debug("Episode %d | Avg_Steps: %f | Training loss %f | Time Elapsed: %f",
-                          self.metrics.episode,
-                          self.metrics.result(),
-                          self.metrics.total_loss.result(),
-                          self.metrics.training_time.result())"""
 
     """
     # G is commonly refered to as the cumulative discounted rewards

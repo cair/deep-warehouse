@@ -62,8 +62,6 @@ class A2CAgent:
         actions = np.empty((batch_sz,), dtype=np.int32)
         rewards, dones, values = np.empty((3, batch_sz))
         observations = np.empty((batch_sz,) + env.observation_space.shape)
-
-
         # training loop: collect samples, send to optimizer, repeat updates times
         ep_rews = [0.0]
         next_obs = env.reset()
@@ -83,13 +81,10 @@ class A2CAgent:
             returns, advs = self._returns_advantages(rewards, dones, values, next_value)
             # a trick to input actions and advantages through same API
             acts_and_advs = np.concatenate([actions[:, None], advs[:, None]], axis=-1)
-
-            print(advs)
-
             # performs a full training step on the collected batch
             # note: no need to mess around with gradients, Keras API handles it
             losses = self.model.train_on_batch(observations, [acts_and_advs, returns])
-            logging.info("[%d/%d] Losses: %s" % (update+1, updates, losses))
+            logging.debug("[%d/%d] Losses: %s" % (update+1, updates, losses))
         return ep_rews
 
     def test(self, env, render=False):
@@ -111,7 +106,6 @@ class A2CAgent:
         returns = returns[:-1]
         # advantages are returns - baseline, value estimates in our case
         advantages = returns - values
-
         return returns, advantages
 
     def _value_loss(self, returns, value):
@@ -131,9 +125,7 @@ class A2CAgent:
         # entropy loss can be calculated via CE over itself
         entropy_loss = kls.categorical_crossentropy(logits, logits, from_logits=True)
         # here signs are flipped because optimizer minimizes
-        # - self.params['entropy']*entropy_loss
-        print(policy_loss)
-        return policy_loss
+        return policy_loss - self.params['entropy']*entropy_loss
 
 
 if __name__ == '__main__':

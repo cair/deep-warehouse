@@ -17,7 +17,6 @@ class Agent:
                  policies,
                  tensorboard_enabled,
                  tensorboard_path,
-                 optimizer=tf.keras.optimizers.Adam(lr=0.001),
                  name_prefix=""
                  ):
         self.last_predict = None
@@ -27,9 +26,12 @@ class Agent:
         self.metrics = Metrics(self)
         self.policies = policies
 
+        """Initialize Policies. This is a "hack" to support pickling of models."""
+        for key, policy in self.policies.items():
+            self.policies[key]["model"] = self.policies[key]["model"](**self.policies[key]["args"])
+
         """Find all policies with inference flag set. Ensure that its only 1 and assign as the inference 
         policy. """
-
         self.inference_policy = [x for k, x in self.policies.items() if x["inference"]]
         if len(self.inference_policy) != 1:
             raise ValueError("There can only be 1 policy with the flag training=False.")
@@ -38,7 +40,6 @@ class Agent:
         """This list contains names of policies that should be trained"""
         self.training_policies = [x for k, x in self.policies.items() if x["training"]]
 
-        self.optimizer = optimizer
         self.name = self.__class__.__name__
         self.batch = BatchHandler(
             agent=self,
@@ -89,6 +90,7 @@ class Agent:
         self.metrics.add("reward", reward)
 
         if terminal:
+            self.metrics.add("reward_avg", self.metrics.get("reward").result(), type="Mean")
             self.metrics.summarize()
 
         return self.batch.add(
@@ -113,7 +115,7 @@ class Agent:
                     total_loss += loss
 
             grads = tape.gradient(total_loss, policy.trainable_variables)
-            self.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
+            policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
         self.metrics.add("iterations_per_episode", 1, "Sum")
         self.metrics.add("total_loss", total_loss, "Mean")
