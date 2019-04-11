@@ -6,7 +6,7 @@ class Metrics:
 
     def __init__(self, agent):
         self.agent = agent
-        self.episode = 0
+        self.episode = 1
 
         self.metrics = dict(
             reward=tf.keras.metrics.Sum(name="reward", dtype=tf.float32),
@@ -20,7 +20,7 @@ class Metrics:
             if isinstance(metric, tf.keras.metrics.Mean):
                 continue
             metric.reset_states()
-
+        
     def summarize(self):
         res_str = "Episode: %s | " % self.episode
         for k, metric in self.metrics.items():
