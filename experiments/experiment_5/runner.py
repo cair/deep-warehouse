@@ -13,10 +13,14 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 if __name__ == "__main__":
+    benchmark = False
+    episodes = 500
+    env_name = "CartPole-v1"
+
     def submit(args):
 
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-        env = gym.make('CartPole-v0')
+        env = gym.make(env_name)
 
         AGENT, spec, episodes = args
         agent = AGENT(**spec)
@@ -37,32 +41,24 @@ if __name__ == "__main__":
                 steps += 1
 
 
-
-    benchmark = True
-
-    episodes = 100000
-    env = gym.make('CartPole-v0')
+    env = gym.make(env_name)
 
     if not benchmark:
+        """submit((REINFORCE, dict(
+            obs_space=env.observation_space,
+            action_space=env.action_space.n,
+            batch_mode="episodic",
+            batch_size=64,
+            tensorboard_enabled=True,
+            tensorboard_path="./tb/"
+        ), episodes))"""
         submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             batch_size=64,  # Important
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
-            name_prefix="Huber_64_RMSprop_big",
-            policies=dict(
-                target=dict(
-                    model=A2CPolicy,
-                    args=dict(
-                        action_space=env.action_space.n,
-                        dtype=tf.float32,
-                        optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
-                    ),
-                    training=True,
-                    inference=True
-                )
-            )
+            name_prefix="Huber_64",
         ), episodes))
     else:
         agents = [
@@ -89,129 +85,7 @@ if __name__ == "__main__":
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
                 name_prefix="Huber_64",
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_RMSprop_small",
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.RMSprop(lr=0.0001)
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_Adam_small",
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.Adam(lr=0.0001),
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_RMSprop_big",
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_Adam_big",
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.Adam(lr=0.001)
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_RMSprop_small_no_entropy",
-                entropy_coef=0,
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.RMSprop(lr=0.0001)
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
-            [A2C, dict(
-                obs_space=env.observation_space,
-                action_space=env.action_space.n,
-                batch_size=64,  # Important
-                tensorboard_enabled=True,
-                tensorboard_path="./tb/",
-                name_prefix="Huber_64_Adam_small_no_entropy",
-                entropy_coef=0,
-                policies=dict(
-                    target=dict(
-                        model=A2CPolicy,
-                        args=dict(
-                            action_space=env.action_space.n,
-                            dtype=tf.float32,
-                            optimizer=tf.keras.optimizers.Adam(lr=0.0001)
-                        ),
-                        training=True,
-                        inference=True
-                    )
-                )
-            )],
+            )]
         ]
 
         with mp.Pool(os.cpu_count() - 1) as p:

@@ -16,40 +16,25 @@ logging.set_verbosity(logging.DEBUG)
 
 class REINFORCE(Agent):
 
+    DEFAULTS = dict(
+        batch_mode="episodic",
+        batch_size=32,
+        policies=dict(
+            target=lambda agent: PGPolicy(
+                agent=agent,
+                inference=True,
+                training=True,
+                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+            )
+        )
+    )
+
     def __init__(self,
-                 obs_space: gym.spaces.Box,
-                 action_space: gym.spaces.Discrete,
                  gamma=0.99,
                  baseline=None,
-                 batch_size=1,
-                 dtype=tf.float32,
-                 policies=None,
-                 name_prefix="",
-                 tensorboard_enabled=True,
-                 tensorboard_path="./tb/",
-                 ):
+                 **kwargs):
+        super(REINFORCE, self).__init__(**Agent.arguments())
 
-        super(REINFORCE, self).__init__(
-            obs_space=obs_space,
-            action_space=action_space,
-            batch_size=batch_size,
-            dtype=dtype,
-            policies=policies if policies else dict(
-                target=dict(
-                    model=PGPolicy,
-                    args=dict(
-                        action_space=action_space,
-                        dtype=dtype,
-                        optimizer=tf.keras.optimizers.Adam(lr=0.001)
-                    ),
-                    training=True,
-                    inference=True
-                )
-            ),
-            tensorboard_enabled=tensorboard_enabled,
-            tensorboard_path=tensorboard_path,
-            name_prefix=name_prefix
-        )
         self.gamma = gamma
         self.baseline = baseline
 
@@ -66,7 +51,6 @@ class REINFORCE(Agent):
     def get_action(self, observation):
         prediction = super().predict(observation)
         policy_logits = prediction["policy_logits"]
-
 
         action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(policy_logits).numpy())
 

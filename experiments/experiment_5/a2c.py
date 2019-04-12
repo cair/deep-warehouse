@@ -1,29 +1,19 @@
-import time
-
+from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy
 from experiments.experiment_5.pg import REINFORCE
-import gym
 import tensorflow as tf
 
 
 class A2CPolicy(PGPolicy):
 
-    def __init__(self,
-                 action_space,
-                 dtype=tf.float32,
-                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
-                 ):
-        super().__init__(
-            action_space,
-            dtype,
-            optimizer=optimizer
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=dtype)
+        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self._dtype)
         self.state_value = tf.keras.layers.Dense(1,
                                                  activation="linear",
                                                  name="state_value",
-                                                 dtype=dtype
+                                                 dtype=self._dtype
                                                  )
 
     def call(self, inputs):
@@ -36,46 +26,30 @@ class A2CPolicy(PGPolicy):
 
 class A2C(REINFORCE):
 
+    DEFAULTS = dict(
+        batch_mode="steps",
+        batch_size=64,
+        policies=dict(
+            target=lambda agent: A2CPolicy(
+                agent=agent,
+                inference=True,
+                training=True,
+                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+            )
+        )
+    )
+
     def __init__(self,
-                 obs_space: gym.spaces.Box,
-                 action_space: gym.spaces.Discrete,
-                 gamma=0.99,
-                 batch_size=1,
-                 dtype=tf.float32,
-                 tensorboard_enabled=True,
-                 tensorboard_path="./tb/",
-                 policies=None,
-                 name_prefix="",
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
-                 entropy_coef=0.01
-                 ):
+                 entropy_coef=0.01,
+                 **kwargs):
+        super(A2C, self).__init__(**Agent.arguments())
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.entropy_coef = entropy_coef
 
-        super(A2C, self).__init__(
-            obs_space=obs_space,
-            action_space=action_space,
-            gamma=gamma,
-            batch_size=batch_size,
-            dtype=dtype,
-            policies=policies if policies else dict(
-                target=dict(
-                    model=A2CPolicy,
-                    args=dict(
-                        action_space=action_space,
-                        dtype=dtype,
-                        optimizer=tf.keras.optimizers.Adam(lr=0.001)
-                    ),
-                    training=True,
-                    inference=True
-                )
-            ),
-            tensorboard_enabled=tensorboard_enabled,
-            tensorboard_path=tensorboard_path,
-            name_prefix=name_prefix,
-        )
+
 
         self.add_loss(
             "action_value_loss",

@@ -2,43 +2,73 @@ import gym
 import tensorflow as tf
 import datetime
 import os
+import inspect
 
+from experiments.experiment_5 import utils
 from experiments.experiment_5.batch_handler import BatchHandler
 from experiments.experiment_5.metrics import Metrics
 
 
 class Agent:
+    SUPPORTED_BATCH_MODES = ["episodic", "steps"]
+    DEFAULTS = dict()
+    arguments = utils.arguments
 
     def __init__(self,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
-                 batch_size: int,
-                 dtype,
-                 policies,
-                 tensorboard_enabled,
-                 tensorboard_path,
-                 name_prefix=""
-                 ):
-        self.last_predict = None
-        self.dtype = dtype
-        self.loss_fns = {}
-        self.action_space = action_space
-        self.metrics = Metrics(self)
-        self.policies = policies
+                 policies: dict,
+                 batch_mode: str="episodic",
+                 batch_size: int=32,
+                 dtype=tf.float32,
+                 tensorboard_enabled=False,
+                 tensorboard_path="./tb/",
+                 name_prefix=""):
+        args = utils.get_defaults(self, Agent.arguments())
 
-        """Initialize Policies. This is a "hack" to support pickling of models."""
-        for key, policy in self.policies.items():
-            self.policies[key]["model"] = self.policies[key]["model"](**self.policies[key]["args"])
+        """Define properties."""
+        self.obs_space = obs_space
+        self.action_space = action_space
+        self.policies = policies
+        self.batch_mode = batch_mode
+        self.batch_size = batch_size
+        self.dtype = dtype
+
+        self._tensorboard_enabled = tensorboard_enabled
+        self._tensorboard_path = tensorboard_path
+        self._name_prefix = name_prefix
+
+        self.metrics = Metrics(self)
+        self.last_predict = None
+        self.loss_fns = dict()
+
+        self.policies = {
+            k: v(self) for k, v in policies.items()
+        }
+
+        #utils.pollute_namespace(self, args)
+
+
+
+
+
+
+
+
+        if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
+            raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
+                                      (batch_mode, Agent.SUPPORTED_BATCH_MODES))
+        self.batch_mode = batch_mode
 
         """Find all policies with inference flag set. Ensure that its only 1 and assign as the inference 
         policy. """
-        self.inference_policy = [x for k, x in self.policies.items() if x["inference"]]
+        self.inference_policy = [x for k, x in self.policies.items() if x.inference]
         if len(self.inference_policy) != 1:
             raise ValueError("There can only be 1 policy with the flag training=False.")
         self.inference_policy = self.inference_policy[0]
 
         """This list contains names of policies that should be trained"""
-        self.training_policies = [x for k, x in self.policies.items() if x["training"]]
+        self.training_policies = [x for k, x in self.policies.items() if x.training]
 
         self.name = self.__class__.__name__
         self.batch = BatchHandler(
@@ -68,7 +98,7 @@ class Agent:
         inputs = tf.cast(inputs, dtype=self.dtype)
 
         try:
-            self.last_predict = self.policies[policy]["model"](inputs)
+            self.last_predict = self.policies[policy](inputs)
         except KeyError:
             raise ValueError("There is no policy with the name %s" % policy)
 
@@ -103,8 +133,7 @@ class Agent:
     def train(self, observations):
         total_loss = 0
 
-        for policy_spec in self.training_policies:
-            policy = policy_spec["model"]
+        for policy in self.training_policies:
 
             with tf.GradientTape() as tape:
                 predicted_logits = policy(observations)
@@ -121,3 +150,9 @@ class Agent:
         self.metrics.add("total_loss", total_loss, "Mean")
 
         return total_loss
+
+    @staticmethod
+    def policy(model, optimizer, inference, training):
+        self = inspect.currentframe().f_back.f_locals['self']
+
+        model(self, )
