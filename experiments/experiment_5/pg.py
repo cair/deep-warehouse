@@ -40,8 +40,8 @@ class REINFORCE(Agent):
 
         self.add_loss("policy_loss",
                       lambda y: self.policy_loss(
-                          self.batch.b_act,
-                          self.G(self.batch.b_rew, self.batch.b_term),
+                          self.batch.act(),
+                          self.G(self.batch.rewards(), self.batch.terminals()),
                           y["policy_logits"]
                       ))
 
@@ -63,8 +63,7 @@ class REINFORCE(Agent):
 
         if self.batch.counter == 0:
             s = time.time()
-            loss = self.train(self.batch.b_obs)
-
+            loss = self.train(self.batch.obs())
             self.metrics.add("backprop_time", time.time() - s)
 
     """

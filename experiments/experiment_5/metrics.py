@@ -43,3 +43,6 @@ class Metrics:
 
     def summary(self, name, data):
         tf.summary.scalar("sysx/%s" % name, data, self.episode)
+
+    #def histogram(self, name, distribution):
+    #    tf.scalar.histogram("sysx/%s" % name, distribution, self.episode)

@@ -42,27 +42,25 @@ class A2C(REINFORCE):
     def __init__(self,
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
-                 entropy_coef=0.01,
+                 entropy_coef=0.0001,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.entropy_coef = entropy_coef
 
-
-
         self.add_loss(
             "action_value_loss",
             lambda pred: self.action_value_loss(
                 self.G(
-                    self.batch.b_rew,
-                    self.batch.b_term
+                    self.batch.rewards(),
+                    self.batch.terminals()
                 ),
                 pred["action_value"]
             )
         )
 
-        if entropy_coef == 0:
+        if entropy_coef != 0:
             self.add_loss(
                 "entropy_loss",
                 lambda pred: self.entropy_loss(
@@ -72,8 +70,8 @@ class A2C(REINFORCE):
 
     def G(self, rewards, terminals):
         R = super().G(rewards, terminals)
-        V1 = self.predict(self.batch.b_obs1)["action_value"]
-        V = self.predict(self.batch.b_obs)["action_value"]
+        V1 = self.predict(self.batch.obs1())["action_value"]
+        V = self.predict(self.batch.obs())["action_value"]
 
         return R + (V1 * self.gamma - V)
 

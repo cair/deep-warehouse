@@ -46,15 +46,6 @@ class Agent:
             k: v(self) for k, v in policies.items()
         }
 
-        #utils.pollute_namespace(self, args)
-
-
-
-
-
-
-
-
         if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
                                       (batch_mode, Agent.SUPPORTED_BATCH_MODES))
@@ -149,9 +140,3 @@ class Agent:
         self.metrics.add("total_loss", total_loss, "Mean")
 
         return total_loss
-
-    @staticmethod
-    def policy(model, optimizer, inference, training):
-        self = inspect.currentframe().f_back.f_locals['self']
-
-        model(self, )

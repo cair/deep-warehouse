@@ -14,8 +14,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 if __name__ == "__main__":
     benchmark = False
-    episodes = 500
-    env_name = "CartPole-v1"
+    episodes = 1000
+    env_name = "CartPole-v0"
 
     def submit(args):
 
@@ -55,6 +55,7 @@ if __name__ == "__main__":
         submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
+            batch_mode="episodic",
             batch_size=64,  # Important
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
