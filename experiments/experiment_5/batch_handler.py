@@ -9,15 +9,14 @@ class BatchHandler:
                  agent,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
-                 batch_size,
-                 dtype=tf.float32):
+                 batch_size):
         self.agent = agent
         self.action_space = action_space
 
         # Convert dtype from tf to numpy
-        if dtype == tf.float32:
+        if self.agent.dtype == tf.float32:
             dtype = np.float32
-        elif dtype == tf.float16:
+        elif self.agent.dtype == tf.float16:
             dtype = np.float16
 
         self.b_obs = np.zeros(shape=(batch_size, ) + obs_space.shape, dtype=dtype)

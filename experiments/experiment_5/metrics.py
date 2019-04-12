@@ -9,10 +9,10 @@ class Metrics:
         self.episode = 1
 
         self.metrics = dict(
-            reward=tf.keras.metrics.Sum(name="reward", dtype=tf.float32),
-            steps=tf.keras.metrics.Sum(name="steps", dtype=tf.float32),
-            total_loss=tf.keras.metrics.Mean(name="loss", dtype=tf.float32),
-            backprop_time=tf.keras.metrics.Mean(name="backprop_time", dtype=tf.float32)
+            reward=tf.keras.metrics.Sum(name="reward", dtype=self.agent.dtype),
+            steps=tf.keras.metrics.Sum(name="steps", dtype=self.agent.dtype),
+            total_loss=tf.keras.metrics.Mean(name="loss", dtype=self.agent.dtype),
+            backprop_time=tf.keras.metrics.Mean(name="backprop_time", dtype=self.agent.dtype)
         )
 
     def reset(self):
@@ -37,7 +37,7 @@ class Metrics:
     def add(self, name, value, type="Mean"):
         if name not in self.metrics:
             metric_type = getattr(tf.keras.metrics, type)
-            self.metrics[name] = metric_type(name, dtype=tf.float32)
+            self.metrics[name] = metric_type(name, dtype=self.agent.dtype)
 
         self.metrics[name](value)
 

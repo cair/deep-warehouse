@@ -75,8 +75,7 @@ class Agent:
             agent=self,
             obs_space=obs_space,
             action_space=action_space,
-            batch_size=batch_size,
-            dtype=dtype
+            batch_size=batch_size
         )
 
         if tensorboard_enabled:

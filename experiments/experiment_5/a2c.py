@@ -9,11 +9,11 @@ class A2CPolicy(PGPolicy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self._dtype)
+        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.state_value = tf.keras.layers.Dense(1,
                                                  activation="linear",
                                                  name="state_value",
-                                                 dtype=self._dtype
+                                                 dtype=self.agent.dtype
                                                  )
 
     def call(self, inputs):
