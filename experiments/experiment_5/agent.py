@@ -5,7 +5,7 @@ import os
 import inspect
 
 from experiments.experiment_5 import utils
-from experiments.experiment_5.batch_handler import BatchHandler
+from experiments.experiment_5.batch_handler import BatchHandler, VectorBatchHandler
 from experiments.experiment_5.metrics import Metrics
 
 
@@ -18,8 +18,9 @@ class Agent:
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  policies: dict,
-                 batch_mode: str="episodic",
-                 batch_size: int=32,
+                 batch_mode: str = "episodic",
+                 mini_batches: int = 1,
+                 batch_size: int = 32,
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
@@ -32,6 +33,7 @@ class Agent:
         self.policies = policies
         self.batch_mode = batch_mode
         self.batch_size = batch_size
+        self.mini_batches = mini_batches
         self.dtype = dtype
 
         self._tensorboard_enabled = tensorboard_enabled
@@ -62,7 +64,7 @@ class Agent:
         self.training_policies = [x for k, x in self.policies.items() if x.training]
 
         self.name = self.__class__.__name__
-        self.batch = BatchHandler(
+        self.batch = VectorBatchHandler(
             agent=self,
             obs_space=obs_space,
             action_space=action_space,
@@ -120,16 +122,23 @@ class Agent:
             increment=True
         )
 
-    def train(self, observations):
+    def train(self, obs, obs1, action, action_logits, rewards, terminals):
         total_loss = 0
 
         for policy in self.training_policies:
 
             with tf.GradientTape() as tape:
-                predicted_logits = policy(observations)
+                prediction = policy(obs)
 
                 for loss_name, loss_fn in self.loss_fns.items():
-                    loss = loss_fn(predicted_logits)
+                    loss = loss_fn(prediction, data=dict(
+                        obs=obs,
+                        obs1=obs1,
+                        actions=action,
+                        action_logits=action_logits,
+                        rewards=rewards,
+                        terminals=terminals
+                    ))
                     self.metrics.add(loss_name, loss, type="Mean")
                     total_loss += loss
 
@@ -138,5 +147,4 @@ class Agent:
 
         self.metrics.add("iterations_per_episode", 1, "Sum")
         self.metrics.add("total_loss", total_loss, "Mean")
-
         return total_loss

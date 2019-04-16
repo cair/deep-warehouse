@@ -8,6 +8,9 @@ from experiments.experiment_5.pg import REINFORCE
 
 import multiprocessing as mp
 import tensorflow as tf
+
+from experiments.experiment_5.ppo import PPO
+
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -52,11 +55,12 @@ if __name__ == "__main__":
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((A2C, dict(
+        submit((REINFORCE, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             batch_mode="episodic",
-            batch_size=64,  # Important
+            batch_size=16,  # Important
+            mini_batches=4,
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
             name_prefix="Huber_64",

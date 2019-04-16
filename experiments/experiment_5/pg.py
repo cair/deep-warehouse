@@ -39,9 +39,9 @@ class REINFORCE(Agent):
         self.baseline = baseline
 
         self.add_loss("policy_loss",
-                      lambda y: self.policy_loss(
-                          self.batch.act(),
-                          self.G(self.batch.rewards(), self.batch.terminals()),
+                      lambda y, data: self.policy_loss(
+                          data["actions"],
+                          self.G(data["rewards"], data["terminals"]),
                           y["policy_logits"]
                       ))
 
@@ -63,8 +63,12 @@ class REINFORCE(Agent):
 
         if self.batch.counter == 0:
             s = time.time()
-            loss = self.train(self.batch.obs())
+
+            for obs, obs1, action, action_logits, rewards, terminals in zip(*self.batch.get()):
+                loss = self.train(obs, obs1, action, action_logits, rewards, terminals)
+
             self.metrics.add("backprop_time", time.time() - s)
+            self.batch.clear()  # TODO?
 
     """
     # G is commonly refered to as the cumulative discounted rewards
@@ -102,6 +106,7 @@ class REINFORCE(Agent):
         log_action_prob = tf.keras.backend.log(
             tf.keras.backend.sum(predicted_logits * A, axis=1)
         )
+
         loss = - log_action_prob * G
         loss = tf.keras.backend.mean(loss)
 

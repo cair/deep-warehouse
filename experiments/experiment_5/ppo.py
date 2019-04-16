@@ -1,3 +1,4 @@
+from experiments.experiment_5.a2c import A2C
 from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy, Policy
 from experiments.experiment_5.pg import REINFORCE
@@ -13,25 +14,31 @@ class PPOPolicy(Policy):
         self.h_2 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.h_3 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+
+        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits', dtype=self.agent.dtype)
+
+        self.state_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.state_value = tf.keras.layers.Dense(1,
                                                  activation="linear",
                                                  name="state_value",
                                                  dtype=self.agent.dtype
                                                  )
-
     def call(self, inputs):
         x = self.h_1(inputs)
         x = self.h_2(x)
         x = self.h_3(x)
         x = self.h_4(x)
 
+        policy_logits = self.logits(x)
+        state_value = self.state_value(self.state_value_1(x))
 
         return {
-            "policy": None
+            "policy_logits": policy_logits,
+            "action_value": state_value
         }
 
 
-class A2C(REINFORCE):
+class PPO(A2C):
 
     DEFAULTS = dict(
         batch_mode="steps",
@@ -52,67 +59,34 @@ class A2C(REINFORCE):
         )
     )
 
+    # TODO
+    # * Add KL-penalized objective (loss)
+    # * Clipped surrogate objective
+    # * generalized advantage estimation  - WHEN RNN
+    # * finite horizon estimators
+    # * entropy bonus
     def __init__(self,
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
+                 clipping_threshold=0.2,
+
                  entropy_coef=0.0001,
                  **kwargs):
-        super(A2C, self).__init__(**Agent.arguments())
-        self.value_coef = value_coef
-        self.value_loss = value_loss
-        self.entropy_coef = entropy_coef
+        super(PPO, self).__init__(**Agent.arguments())
 
         self.add_loss(
-            "action_value_loss",
-            lambda pred: self.action_value_loss(
-                self.G(
-                    self.batch.rewards(),
-                    self.batch.terminals()
-                ),
-                pred["action_value"]
+            "clipped_surrogate_loss",
+            lambda pred: self.clipped_surrogate_loss(
+                self.batch.obs(),
+                pred["policy_logits"]
             )
         )
 
-        if entropy_coef != 0:
-            self.add_loss(
-                "entropy_loss",
-                lambda pred: self.entropy_loss(
-                    pred["policy_logits"]
-                )
-            )
+    def clipped_surrogate_loss(self, obs, policy):
 
-    def G(self, rewards, terminals):
-        R = super().G(rewards, terminals)
-        V1 = self.predict(self.batch.obs1())["action_value"]
-        V = self.predict(self.batch.obs())["action_value"]
 
-        return R + (V1 * self.gamma - V)
-
-    def action_value_loss(self, returns, predicted):
-        """
-        The action_value loss is the MSE of discounted reward and predicted
-        :param returns:
-        :param predicted:
-        :return:
-        """
-        if self.value_loss == "huber":
-            loss = tf.losses.Huber()
-            loss = loss(returns, predicted)
-        elif self.value_loss == "mse":
-            loss = tf.keras.losses.mean_squared_error(returns, predicted)
-        else:
-            raise NotImplementedError("The loss %s is not implemented for %s." % (self.value_loss, self.name))
-        loss *= self.value_coef
-
-        return loss
-
-    def entropy_loss(self, predicted):
-        #a = tf.keras.losses.categorical_crossentropy(predicted, predicted, from_logits=True)
-        #a = tf.reduce_sum(a)
-
-        """Entropy loss, according to:
-        H(x) = -\sum_{i=1}^n {\mathrm{P}(x_i) \log_e \mathrm{P}(x_i)}
-        """
-        entropy_loss = -tf.reduce_sum(predicted * tf.math.log(predicted))
-
-        return (entropy_loss * self.entropy_coef)
+        r = policy / self.policies["old"](obs)["policy_logits"]
+        print(r.shape)
+        return tf.cast(1, dtype=tf.float32)
+        # r_t(theta)
+        #pred_old = self.policies["old"](state)
