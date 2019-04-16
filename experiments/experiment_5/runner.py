@@ -55,12 +55,12 @@ if __name__ == "__main__":
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((REINFORCE, dict(
+        submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             batch_mode="episodic",
-            batch_size=16,  # Important
-            mini_batches=4,
+            batch_size=64,  # Important
+            mini_batches=1,
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
             name_prefix="Huber_64",

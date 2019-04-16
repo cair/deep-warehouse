@@ -44,15 +44,17 @@ class PPO(A2C):
         batch_mode="steps",
         batch_size=64,
         policies=dict(
+            # The training policy (The new one)
             target=lambda agent: PPOPolicy(
                 agent=agent,
-                inference=True,
+                inference=False,
                 training=True,
                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
             ),
+            # The old policy (The inference one)
             old=lambda agent: PPOPolicy(
                 agent=agent,
-                inference=False,
+                inference=True,
                 training=False,
                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
             ),
@@ -73,20 +75,24 @@ class PPO(A2C):
                  entropy_coef=0.0001,
                  **kwargs):
         super(PPO, self).__init__(**Agent.arguments())
+        self.clipping_threshold = clipping_threshold
 
         self.add_loss(
             "clipped_surrogate_loss",
-            lambda pred: self.clipped_surrogate_loss(
-                self.batch.obs(),
-                pred["policy_logits"]
+            lambda prediction, data: self.clipped_surrogate_loss(
+                data["obs"],
+                self.G(data["obs"], data["obs1"], data["rewards"], data["terminals"]),
+                prediction["policy_logits"]
             )
         )
 
-    def clipped_surrogate_loss(self, obs, policy):
+    def clipped_surrogate_loss(self, obs, advantages, pi_new):
 
+        pi_old = self.policies["old"](obs)["policy_logits"]
 
-        r = policy / self.policies["old"](obs)["policy_logits"]
-        print(r.shape)
-        return tf.cast(1, dtype=tf.float32)
-        # r_t(theta)
-        #pred_old = self.policies["old"](state)
+        r = tf.exp(pi_new - pi_old)
+        clip_prob = tf.clip_by_value(r, 1.-self.clipping_threshold, 1.+self.clipping_threshold)
+
+        #ppo_loss = -tf.reduce_mean(tf.minimum(tf.multiply(r, advantages), tf.multiply(clip_prob, advantages)))
+
+        return 0 #ppo_loss

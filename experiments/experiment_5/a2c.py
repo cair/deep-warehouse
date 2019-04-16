@@ -51,29 +51,31 @@ class A2C(REINFORCE):
 
         self.add_loss(
             "action_value_loss",
-            lambda pred: self.action_value_loss(
+            lambda prediction, data: self.action_value_loss(
                 self.G(
-                    self.batch.rewards(),
-                    self.batch.terminals()
+                    data["obs"],
+                    data["obs1"],
+                    data["rewards"],
+                    data["terminals"]
                 ),
-                pred["action_value"]
+                prediction["action_value"]
             )
         )
 
         if entropy_coef != 0:
             self.add_loss(
                 "entropy_loss",
-                lambda pred: self.entropy_loss(
-                    pred["policy_logits"]
+                lambda prediction, data: self.entropy_loss(
+                    prediction["policy_logits"]
                 )
             )
 
-    def G(self, rewards, terminals):
-        R = super().G(rewards, terminals)
-        V1 = self.predict(self.batch.obs1())["action_value"]
-        V = self.predict(self.batch.obs())["action_value"]
+    def G(self, obs, obs1, rewards, terminals):
+        R = super().G(obs, obs1, rewards, terminals)
+        V1 = tf.squeeze(self.predict(obs1)["action_value"])
+        V = tf.squeeze(self.predict(obs)["action_value"])
 
-        return R + (V1 * self.gamma - V)
+        return R + (V1*self.gamma) - V
 
     def action_value_loss(self, returns, predicted):
         """
@@ -102,4 +104,4 @@ class A2C(REINFORCE):
         """
         entropy_loss = -tf.reduce_sum(predicted * tf.math.log(predicted))
 
-        return (entropy_loss * self.entropy_coef)
+        return entropy_loss * self.entropy_coef

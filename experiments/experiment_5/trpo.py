@@ -84,10 +84,10 @@ class TRPO(REINFORCE):
                 )
             )
 
-    def G(self, rewards, terminals):
+    def G(self, obs, obs1, rewards, terminals):
         R = super().G(rewards, terminals)
-        V1 = self.predict(self.batch.obs1())["action_value"]
-        V = self.predict(self.batch.obs())["action_value"]
+        V1 = self.predict(obs1)["action_value"]
+        V = self.predict(obs)["action_value"]
 
         return R + (V1 * self.gamma - V)
 

@@ -39,10 +39,15 @@ class REINFORCE(Agent):
         self.baseline = baseline
 
         self.add_loss("policy_loss",
-                      lambda y, data: self.policy_loss(
+                      lambda prediction, data: self.policy_loss(
                           data["actions"],
-                          self.G(data["rewards"], data["terminals"]),
-                          y["policy_logits"]
+                          self.G(
+                              data["obs"],
+                              data["obs1"],
+                              data["rewards"],
+                              data["terminals"]
+                          ),
+                          prediction["policy_logits"]
                       ))
 
     def reset(self):
@@ -74,7 +79,7 @@ class REINFORCE(Agent):
     # G is commonly refered to as the cumulative discounted rewards
     """
 
-    def G(self, rewards, terminals):
+    def G(self, obs, obs1, rewards, terminals):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
         discounted_rewards = np.zeros_like(rewards)
 
@@ -109,7 +114,6 @@ class REINFORCE(Agent):
 
         loss = - log_action_prob * G
         loss = tf.keras.backend.mean(loss)
-
         return loss
 
 
