@@ -21,28 +21,30 @@ if __name__ == "__main__":
     env_name = "CartPole-v0"
 
     def submit(args):
+        try:
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            env = gym.make(env_name)
 
-        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-        env = gym.make(env_name)
+            AGENT, spec, episodes = args
+            agent = AGENT(**spec)
 
-        AGENT, spec, episodes = args
-        agent = AGENT(**spec)
+            for e in range(episodes):
 
-        for e in range(episodes):
+                steps = 0
+                terminal = False
+                obs = env.reset()
+                cum_loss = 0
+                loss_n = 0
 
-            steps = 0
-            terminal = False
-            obs = env.reset()
-            cum_loss = 0
-            loss_n = 0
-
-            while not terminal:
-                action = agent.get_action(obs[None, :])
-                obs, reward, terminal, info = env.step(action)
-                reward = 0 if terminal else reward
-                agent.observe(obs[None, :], reward, terminal)
-                steps += 1
-
+                while not terminal:
+                    action = agent.get_action(obs[None, :])
+                    obs, reward, terminal, info = env.step(action)
+                    reward = 0 if terminal else reward
+                    agent.observe(obs[None, :], reward, terminal)
+                    steps += 1
+        except Exception as e:
+            print(e)
+            raise e
 
     env = gym.make(env_name)
 
@@ -61,7 +63,7 @@ if __name__ == "__main__":
             batch_size=64,  # Important
             batch_mode="steps",
             policies=dict(
-                turget=lambda agent: A2CPolicy(
+                target=lambda agent: A2CPolicy(
                     agent=agent,
                     inference=True,
                     training=True,
@@ -119,5 +121,5 @@ if __name__ == "__main__":
             )]
         ]
 
-        with mp.Pool(os.cpu_count() - 1) as p:
+        with mp.Pool(os.cpu_count() ) as p:
             p.map(submit, [x + [episodes] for x in agents])
