@@ -103,17 +103,20 @@ class REINFORCE(Agent):
 
     """
     A: one hot vectors of actions
-    G: discounted rewards
+    G: discounted rewards (advantages)
     predicted_logits: The network's predicted logits.
     """
     def policy_loss(self, A, G, predicted_logits):
 
-        log_action_prob = tf.keras.backend.log(
-            tf.keras.backend.sum(predicted_logits * A, axis=1)
-        )
+        neg_log_policy = -tf.math.log(tf.clip_by_value(predicted_logits, 1e-7, 1))
+        loss = tf.reduce_mean(tf.reduce_sum(neg_log_policy * A, axis=1) * G)
 
-        loss = - log_action_prob * G
-        loss = tf.keras.backend.mean(loss)
+        #log_action_prob = tf.keras.backend.log(
+        #    tf.keras.backend.sum(predicted_logits * A, axis=1)
+        #)
+
+        #loss = - log_action_prob * G
+        #loss = tf.keras.backend.mean(loss)
         return loss
 
 
