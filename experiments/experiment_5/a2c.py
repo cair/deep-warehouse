@@ -1,3 +1,4 @@
+from experiments.experiment_5 import utils
 from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy
 from experiments.experiment_5.pg import REINFORCE
@@ -30,24 +31,47 @@ class A2C(REINFORCE):
         batch_mode="steps",
         batch_size=64,
         policies=dict(
-            target=lambda agent: A2CPolicy(
+            policy=lambda agent: A2CPolicy(
                 agent=agent,
                 inference=True,
+                training=False,
+                optimizer=None
+            ),
+            target=lambda agent: A2CPolicy(
+                agent=agent,
+                inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
             )
+        ),
+        policy_update=dict(
+            interval=5,  # Update every 5 training epochs,
+            strategy="copy",  # "copy, mean"
         )
     )
 
     def __init__(self,
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
-                 entropy_coef=0.0001,
+                 entropy_coef=0.00001,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.entropy_coef = entropy_coef
+
+        self.metrics.text("explained_variance", "Explained Variance is an attempt to measure the quality of the state "
+                                                "value.  \n"
+                                                "**ev=0**: Might as well have predicted zero  \n"
+                                                "**ev=1**: Perfect prediction  \n  "
+                                                "**ev<0**: Worse than just predicting zero")
+
+        self.metrics.text("hyperparameters", [
+            ["**Hyperparameter**", "**Value**"],
+            ["Value Coefficient", str(value_coef)],
+            ["Entropy Coefficient", str(entropy_coef)],
+            ["Value Loss", str(value_loss)]
+        ])
 
         self.add_loss(
             "action_value_loss",
@@ -75,7 +99,9 @@ class A2C(REINFORCE):
         V1 = tf.squeeze(self.predict(obs1)["action_value"])
         V = tf.squeeze(self.predict(obs)["action_value"])
 
-        return R + (V1*self.gamma) - V
+        self.metrics.add("explained_variance", utils.explained_variance(V, R))
+
+        return R + ((V1*self.gamma) - V)
 
     def action_value_loss(self, returns, predicted):
         """

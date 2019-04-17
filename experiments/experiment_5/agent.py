@@ -18,6 +18,10 @@ class Agent:
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  policies: dict,
+                 policy_update=dict(
+                     interval=5,  # Update every 5 training epochs,
+                     strategy="mean",  # "copy, mean"
+                 ),
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
                  batch_size: int = 32,
@@ -63,6 +67,13 @@ class Agent:
         """This list contains names of policies that should be trained"""
         self.training_policies = [x for k, x in self.policies.items() if x.training]
 
+        # Policy update. This is the strategy used when using multiple policies (ie one trainer and one predictor)
+        # Settings here determine how updates should be performed.
+        self.policy_update = policy_update
+        self.policy_update_counter = 0
+        self.policy_update_frequency = self.policy_update["interval"]
+        self.policy_update_enabled = len(self.policies) > 0
+
         self.name = self.__class__.__name__
         self.batch = VectorBatchHandler(
             agent=self,
@@ -86,11 +97,16 @@ class Agent:
         self.loss_fns[name] = lambda_fn
 
     # @tf.function
-    def predict(self, inputs, policy="target"):
+    def predict(self, inputs, policy=None):
+        """
+        :param inputs: DATA INPUT
+        :param policy: Which policy to use. When None, self.inference_policy will be used.
+        :return:
+        """
         inputs = tf.cast(inputs, dtype=self.dtype)
 
         try:
-            self.last_predict = self.policies[policy](inputs)
+            self.last_predict = self.inference_policy(inputs) if policy is None else self.policies[policy](inputs)
         except KeyError:
             raise ValueError("There is no policy with the name %s" % policy)
 
@@ -124,12 +140,15 @@ class Agent:
 
     def train(self, obs, obs1, action, action_logits, rewards, terminals):
         total_loss = 0
+        self.policy_update_counter += 1
 
+        """Policy training procedure"""
         for policy in self.training_policies:
 
             with tf.GradientTape() as tape:
                 prediction = policy(obs)
 
+                """Run all loss functions"""
                 for loss_name, loss_fn in self.loss_fns.items():
                     loss = loss_fn(prediction, data=dict(
                         obs=obs,
@@ -139,12 +158,37 @@ class Agent:
                         rewards=rewards,
                         terminals=terminals
                     ))
+
+                    """Add metric for loss"""
                     self.metrics.add(loss_name, loss, type="Mean")
+
+                    """Add to total loss"""
                     total_loss += loss
 
+            """Calculate gradients"""
             grads = tape.gradient(total_loss, policy.trainable_variables)
+
+            """Backprop"""
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
+
+        """Policy update strategy (If applicable)."""
+        if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:
+            strategy = self.policy_update["strategy"]
+
+            if strategy == "mean":
+                raise NotImplementedError("Not implemented yet")
+            elif strategy == "copy":
+                for policy in self.training_policies:
+                    self.inference_policy.set_weights(policy.get_weights())
+                self.policy_update_counter = 0
+
+
+            else:
+                raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
+
+
+        """Update metrics for training"""
         self.metrics.add("iterations_per_episode", 1, "Sum")
         self.metrics.add("total_loss", total_loss, "Mean")
         return total_loss

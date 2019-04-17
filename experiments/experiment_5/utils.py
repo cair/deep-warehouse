@@ -4,8 +4,33 @@ import time
 import gym
 import tensorflow as tf
 import inspect
-
+import numpy as np
 import collections
+
+
+def explained_variance(ypred, y):
+    """
+    From openai - baselines
+    Computes fraction of variance that ypred explains about y.
+    Returns 1 - Var[y-ypred] / Var[y]
+
+    interpretation:
+        ev=0  =>  might as well have predicted zero
+        ev=1  =>  perfect prediction
+        ev<0  =>  worse than just predicting zero
+
+    """
+    assert y.ndim == 1 and ypred.ndim == 1
+    vary = np.var(y)
+    return np.nan if vary == 0 else 1 - np.var(y - ypred) / vary
+
+
+def explained_variance_2d(ypred, y):
+    assert y.ndim == 2 and ypred.ndim == 2
+    vary = np.var(y, axis=0)
+    out = 1 - np.var(y - ypred) / vary
+    out[vary < 1e-10] = 0
+    return out
 
 
 def update(d, u):
@@ -16,8 +41,8 @@ def update(d, u):
             d[k] = v
     return d
 
-def pollute_namespace(o, kwargs):
 
+def pollute_namespace(o, kwargs):
     for k, v in kwargs.items():
         setattr(o, k, v)
 
@@ -41,6 +66,7 @@ def arguments():
     args = update(DEFAULTS, args)
     return args
 
+
 def get_defaults(o, additionally: dict):
     """Retrieve defaults for all of the classes in the inheritance hierarchy"""
     blacklist = ["tensorflow", "keras", "tf"]
@@ -56,6 +82,7 @@ def get_defaults(o, additionally: dict):
         update(DEFAULTS, additionally)
 
     return DEFAULTS
+
 
 def is_gpu_faster(model, env_name):
     env = gym.make(env_name)
@@ -75,7 +102,7 @@ def is_gpu_faster(model, env_name):
             predicted_logits = model(observations)
 
             predicted_logits = predicted_logits["policy_logits"]
-            #loss = tf.keras.losses.categorical_crossentropy(predicted_logits, predicted_logits, from_logits=True)
+            # loss = tf.keras.losses.categorical_crossentropy(predicted_logits, predicted_logits, from_logits=True)
             loss = tf.reduce_mean(predicted_logits * predicted_logits)
 
         grads = tape.gradient(loss, model.trainable_variables)
@@ -92,18 +119,16 @@ def is_gpu_faster(model, env_name):
                 print("Training %s: %s - %sms" % (n, device_type, test(lambda: train(model, [obs for _ in range(n)]))))
 
 
-
 if __name__ == "__main__":
-    #print("--------\ntf.float16")
-    #is_gpu_faster(PGPolicy(action_space=2,
+    # print("--------\ntf.float16")
+    # is_gpu_faster(PGPolicy(action_space=2,
     #                        dtype=tf.float16,
     #                        optimizer=tf.keras.optimizers.RMSprop(lr=0.001)), "CartPole-v0")
-    #print("--------\ntf.float32")
-    #is_gpu_faster(PGPolicy(action_space=2,
+    # print("--------\ntf.float32")
+    # is_gpu_faster(PGPolicy(action_space=2,
     #                        dtype=tf.float32,
     #                        optimizer=tf.keras.optimizers.RMSprop(lr=0.001)), "CartPole-v0")
     print("--------\ntf.float64")
     is_gpu_faster(PGPolicy(action_space=2,
-                            dtype=tf.float64,
-                            optimizer=tf.keras.optimizers.RMSprop(lr=0.001)), "CartPole-v0")
-
+                           dtype=tf.float64,
+                           optimizer=tf.keras.optimizers.RMSprop(lr=0.001)), "CartPole-v0")
