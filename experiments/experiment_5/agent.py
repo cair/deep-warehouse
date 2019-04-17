@@ -64,7 +64,7 @@ class Agent:
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
 
         self.policies = {
-            k: v(self) for k, v in policies.items()
+            k: v[0](agent=self, **v[1]) for k, v in policies.items()
         }
 
         if batch_mode not in Agent.SUPPORTED_BATCH_MODES:

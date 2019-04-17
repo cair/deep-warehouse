@@ -8,3 +8,6 @@ opencv-python
 jupyter
 jupyterlab
 gym
+
+dill
+pathos

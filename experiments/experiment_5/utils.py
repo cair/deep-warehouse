@@ -73,8 +73,6 @@ def arguments():
     _hyperparameters = getattr(self, "_hyperparameters")
     _hyperparameters.update(named_args)
 
-    print(_hyperparameters)
-
     del frame
 
     args = update(DEFAULTS, args)
