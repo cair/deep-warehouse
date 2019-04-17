@@ -17,7 +17,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 if __name__ == "__main__":
     benchmark = False
-    episodes = 1000
+    episodes = 10000
     env_name = "CartPole-v0"
 
     def submit(args):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((A2C, dict(
+        submit((REINFORCE, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             batch_mode="steps",
@@ -71,25 +71,27 @@ if __name__ == "__main__":
                 obs_space=env.observation_space,
                 action_space=env.action_space.n,
                 batch_size=64,
+                batch_mode="episodic",
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/"
             )],
-            [REINFORCE, dict(
+            [A2C, dict(
                 obs_space=env.observation_space,
                 action_space=env.action_space.n,
-                baseline="reward_mean",
+                batch_mode="episodic",
                 batch_size=64,
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
-                name_prefix="MeanBaseline"
+                name_prefix="Episodic"
             )],
             [A2C, dict(
                 obs_space=env.observation_space,
                 action_space=env.action_space.n,
                 batch_size=64,  # Important
+                batch_mode="steps",
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
-                name_prefix="Huber_64",
+                name_prefix="Steps64",
             )]
         ]
 

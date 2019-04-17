@@ -20,7 +20,7 @@ class Agent:
                  policies: dict,
                  policy_update=dict(
                      interval=5,  # Update every 5 training epochs,
-                     strategy="mean",  # "copy, mean"
+                     strategy="copy",  # "copy, mean"
                  ),
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
@@ -87,8 +87,7 @@ class Agent:
         self.policy_update = policy_update
         self.policy_update_counter = 0
         self.policy_update_frequency = self.policy_update["interval"]
-        self.policy_update_enabled = len(self.policies) > 0
-
+        self.policy_update_enabled = len(self.policies) > 1
 
         self.batch = VectorBatchHandler(
             agent=self,

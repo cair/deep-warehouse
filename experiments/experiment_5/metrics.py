@@ -31,7 +31,7 @@ class Mean(deque):
         self.clear()
 
     def result(self):
-        return np.mean(self)
+        return np.nanmean(self)
 
 
 class Metrics:
