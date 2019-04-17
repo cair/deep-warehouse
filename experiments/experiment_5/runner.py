@@ -6,7 +6,7 @@ import os
 from experiments.experiment_5.a2c import A2C, A2CPolicy
 from experiments.experiment_5.pg import REINFORCE
 
-import multiprocessing as mp
+import pathos.multiprocessing as mp
 import tensorflow as tf
 
 from experiments.experiment_5.ppo import PPO
@@ -83,11 +83,12 @@ if __name__ == "__main__":
                 batch_size=64,  # Important
                 batch_mode="steps",
                 policies=dict(
-                    target=(A2C, dict(
+                    target=lambda agent: A2CPolicy(
+                        agent=agent,
                         inference=True,
                         training=True,
                         optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
-                    ))
+                    )
                 ),
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
