@@ -71,7 +71,6 @@ class Agent:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
                                       (batch_mode, Agent.SUPPORTED_BATCH_MODES))
         self.batch_mode = batch_mode
-
         """Find all policies with inference flag set. Ensure that its only 1 and assign as the inference 
         policy. """
         self.inference_policy = [x for k, x in self.policies.items() if x.inference]

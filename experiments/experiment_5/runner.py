@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 if __name__ == "__main__":
-    benchmark = False
+    benchmark = True
     episodes = 10000
     env_name = "CartPole-v0"
 
@@ -55,15 +55,22 @@ if __name__ == "__main__":
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((REINFORCE, dict(
+        submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
-            batch_mode="steps",
             batch_size=64,  # Important
-            mini_batches=1,
+            batch_mode="steps",
+            policies=dict(
+                turget=lambda agent: A2CPolicy(
+                    agent=agent,
+                    inference=True,
+                    training=True,
+                    optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
+                )
+            ),
             tensorboard_enabled=True,
             tensorboard_path="./tb/",
-            name_prefix="Huber_64",
+            name_prefix="SinglePolicy",
         ), episodes))
     else:
         agents = [
@@ -92,6 +99,23 @@ if __name__ == "__main__":
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
                 name_prefix="Steps64",
+            )],
+            [A2C, dict(
+                obs_space=env.observation_space,
+                action_space=env.action_space.n,
+                batch_size=64,  # Important
+                batch_mode="steps",
+                policies=dict(
+                    target=lambda agent: A2CPolicy(
+                        agent=agent,
+                        inference=True,
+                        training=True,
+                        optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
+                    )
+                ),
+                tensorboard_enabled=True,
+                tensorboard_path="./tb/",
+                name_prefix="SinglePolicy",
             )]
         ]
 

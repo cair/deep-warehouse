@@ -35,9 +35,11 @@ def explained_variance_2d(ypred, y):
 
 def update(d, u):
     for k, v in u.items():
-        if isinstance(v, collections.Mapping):
-            d[k] = update(d.get(k, {}), v)
-        else:
+        # TODO - this might be retarded (loses flexibility?)
+        #if isinstance(v, collections.Mapping):
+        #
+        #    d[k] = update(d.get(k, {}), v)
+        #else:
             d[k] = v
     return d
 
@@ -113,7 +115,6 @@ def get_defaults(o, additionally: dict):
 
     DEFAULTS = {}
     for cls in hierarchy:
-        print(cls)
         update(DEFAULTS, cls.DEFAULTS)
 
     if additionally:
