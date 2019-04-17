@@ -76,7 +76,32 @@ if __name__ == "__main__":
         ), episodes))
     else:
         agents = [
-
+            [REINFORCE, dict(
+                obs_space=env.observation_space,
+                action_space=env.action_space.n,
+                batch_size=64,
+                batch_mode="episodic",
+                tensorboard_enabled=True,
+                tensorboard_path="./tb/"
+            )],
+            [A2C, dict(
+                obs_space=env.observation_space,
+                action_space=env.action_space.n,
+                batch_mode="episodic",
+                batch_size=64,
+                tensorboard_enabled=True,
+                tensorboard_path="./tb/",
+                name_prefix="Episodic"
+            )],
+            [A2C, dict(
+                obs_space=env.observation_space,
+                action_space=env.action_space.n,
+                batch_size=64,  # Important
+                batch_mode="steps",
+                tensorboard_enabled=True,
+                tensorboard_path="./tb/",
+                name_prefix="Steps64",
+            )],
             [A2C, dict(
                 obs_space=env.observation_space,
                 action_space=env.action_space.n,
