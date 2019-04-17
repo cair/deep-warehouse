@@ -56,6 +56,7 @@ class A2C(REINFORCE):
                  entropy_coef=0.00001,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
+
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.entropy_coef = entropy_coef
@@ -65,13 +66,6 @@ class A2C(REINFORCE):
                                                 "**ev=0**: Might as well have predicted zero  \n"
                                                 "**ev=1**: Perfect prediction  \n  "
                                                 "**ev<0**: Worse than just predicting zero")
-
-        self.metrics.text("hyperparameters", [
-            ["**Hyperparameter**", "**Value**"],
-            ["Value Coefficient", str(value_coef)],
-            ["Entropy Coefficient", str(entropy_coef)],
-            ["Value Loss", str(value_loss)]
-        ])
 
         self.add_loss(
             "action_value_loss",

@@ -31,6 +31,19 @@ class Agent:
                  name_prefix=""):
         args = utils.get_defaults(self, Agent.arguments())
 
+        self.name = self.__class__.__name__
+
+        if tensorboard_enabled:
+            logdir = os.path.join(
+                tensorboard_path, "%s-%s_%s" %
+                                  (
+                                      self.name,
+                                      name_prefix,
+                                      datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+            )
+            writer = tf.summary.create_file_writer(logdir)
+            writer.set_as_default()
+
         """Define properties."""
         self.obs_space = obs_space
         self.action_space = action_space
@@ -47,6 +60,8 @@ class Agent:
         self.metrics = Metrics(self)
         self.last_predict = None
         self.loss_fns = dict()
+
+        self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
 
         self.policies = {
             k: v(self) for k, v in policies.items()
@@ -74,7 +89,7 @@ class Agent:
         self.policy_update_frequency = self.policy_update["interval"]
         self.policy_update_enabled = len(self.policies) > 0
 
-        self.name = self.__class__.__name__
+
         self.batch = VectorBatchHandler(
             agent=self,
             obs_space=obs_space,
@@ -82,16 +97,6 @@ class Agent:
             batch_size=batch_size
         )
 
-        if tensorboard_enabled:
-            logdir = os.path.join(
-                tensorboard_path, "%s-%s_%s" %
-                                  (
-                                      self.name,
-                                      name_prefix,
-                                      datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
-            )
-            writer = tf.summary.create_file_writer(logdir)
-            writer.set_as_default()
 
     def add_loss(self, name, lambda_fn):
         self.loss_fns[name] = lambda_fn
@@ -170,7 +175,6 @@ class Agent:
 
             """Backprop"""
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
-
 
         """Policy update strategy (If applicable)."""
         if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:

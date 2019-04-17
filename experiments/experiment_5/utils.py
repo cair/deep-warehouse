@@ -61,10 +61,48 @@ def arguments():
     except KeyError:
         DEFAULTS = {}
 
+
+    self = frame.f_back.f_locals["self"]
+    named_args = {k: v for k, v in frame.f_back.f_locals.copy().items() if k != "kwargs"}
+
+    if not hasattr(self, "_hyperparameters"):
+        setattr(self, "_hyperparameters", dict())
+
+    _hyperparameters = getattr(self, "_hyperparameters")
+    _hyperparameters.update(named_args)
+
+    print(_hyperparameters)
+
     del frame
 
     args = update(DEFAULTS, args)
     return args
+
+import collections
+
+def flatten(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, str(v)))
+    return dict(items)
+
+def hyperparameters_to_table(_hyperparameters):
+    """
+    The input is a dictionary of mixed things. We convert this to a 2d list of only ints, strs..
+    :param _hyperparameters:
+    :return:
+    """
+
+
+    flattened = flatten(_hyperparameters)
+    data = [[k, v] for k, v in flattened.items()]
+    data.insert(0, ["**Hyperparameter**", "**Value**"])
+    return data
+
 
 
 def get_defaults(o, additionally: dict):
