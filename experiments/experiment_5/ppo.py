@@ -15,7 +15,8 @@ class PPOPolicy(Policy):
         self.h_3 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
 
-        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits', dtype=self.agent.dtype)
+        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits',
+                                            dtype=self.agent.dtype)
 
         self.state_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.state_value = tf.keras.layers.Dense(1,
@@ -23,6 +24,7 @@ class PPOPolicy(Policy):
                                                  name="state_value",
                                                  dtype=self.agent.dtype
                                                  )
+
     def call(self, inputs):
         x = self.h_1(inputs)
         x = self.h_2(x)
@@ -39,21 +41,21 @@ class PPOPolicy(Policy):
 
 
 class PPO(A2C):
-
     DEFAULTS = dict(
         batch_mode="steps",
-        batch_size=32,
-        entropy_coef=0.0,
-        value_coef=0.5,
-        value_loss="mse",
+        batch_size=64,
+        entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
+        value_coef=1.0,
+        value_loss="huber",
         max_grad_norm=None,
+        baseline="reward_mean",
         policies=dict(
             # The training policy (The new one)
             target=lambda agent: PPOPolicy(
                 agent=agent,
                 inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
             ),
             # The old policy (The inference one)
             old=lambda agent: PPOPolicy(
@@ -62,6 +64,10 @@ class PPO(A2C):
                 training=False,
                 optimizer=tf.keras.optimizers.Adam(lr=0.001)
             ),
+        ),
+        policy_update=dict(
+            interval=5,  # Update every 10 training epochs,
+            strategy="copy"
         )
     )
 
@@ -71,21 +77,28 @@ class PPO(A2C):
     # * generalized advantage estimation  - WHEN RNN
     # * finite horizon estimators
     # * entropy bonus
+    # L2 regularization on networks. (Needed?)
+    # https://nervanasystems.github.io/coach/components/agents/policy_optimization/cppo.html
+    # https://medium.com/mlreview/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565 Variance
+    # https://github.com/hill-a/stable-baselines
+
+    # TODO
+    # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
     def __init__(self,
-                 clipping_threshold=0.2,
+                 epsilon=0.1,
                  **kwargs):
         super(PPO, self).__init__(**Agent.arguments())
-        self.clipping_threshold = clipping_threshold
+        self.epsilon = epsilon  # Clipping coefficient
 
         self.add_loss(
             "clipped_surrogate_loss",
             lambda prediction, data: self.clipped_surrogate_loss(
-                self.policies["old"](data["obs"],)["policy_logits"],
+                self.inference_policy(data["obs"])["policy_logits"],
                 prediction["policy_logits"],
                 data["actions"],
-                #self.discounted_returns(data["rewards"], data["terminals"])
+                # self.discounted_returns(data["rewards"], data["terminals"])
                 self.advantage(
-                    self.policies["old"],
+                    self.inference_policy,
                     data["obs"],
                     data["obs1"],
                     data["rewards"],
@@ -106,7 +119,7 @@ class PPO(A2C):
         l_cpi = tf.exp(new_log_old - neg_log_new) * ADV
 
         """Clipping the l_cpi according to paper."""
-        l_cpi_clipped = tf.clip_by_value(l_cpi, 1.0 - self.clipping_threshold, 1.0 + self.clipping_threshold) * ADV
+        l_cpi_clipped = tf.clip_by_value(l_cpi, 1.0 - self.epsilon, 1.0 + self.epsilon) * ADV
 
         """Use the lowest of l_cpi or clipped"""
         l_clip = tf.minimum(l_cpi, l_cpi_clipped)

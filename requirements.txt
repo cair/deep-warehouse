@@ -8,6 +8,6 @@ opencv-python
 jupyter
 jupyterlab
 gym
-
+gym[atari]
 dill
 pathos

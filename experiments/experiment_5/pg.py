@@ -52,6 +52,7 @@ class REINFORCE(Agent):
         self.batch.counter = 0
 
     def get_action(self, observation):
+        start = time.perf_counter()
         prediction = super().predict(observation)
         policy_logits = prediction["policy_logits"]
 
@@ -59,18 +60,19 @@ class REINFORCE(Agent):
 
         self.batch.add(obs=observation, action_logits=policy_logits, action=action_sample)
 
+        self.metrics.add("inference_time", time.perf_counter() - start)
         return action_sample
 
     def observe(self, obs1, reward, terminal):
         super().observe(obs1, reward, terminal)
 
         if self.batch.counter == 0:
-            s = time.time()
+            s = time.perf_counter()
 
             for obs, obs1, action, action_logits, rewards, terminals in zip(*self.batch.get()):
                 loss = self.train(obs, obs1, action, action_logits, rewards, terminals)
 
-            self.metrics.add("backprop_time", time.time() - s)
+            self.metrics.add("backprop_time", time.perf_counter() - s)
             self.batch.clear()  # TODO?
 
     """
@@ -80,7 +82,6 @@ class REINFORCE(Agent):
     def discounted_returns(self, rewards, terminals):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
         discounted_rewards = np.zeros_like(rewards)
-
         cum_r = 0
         l = len(rewards)
         for i in reversed(range(0, l)):
@@ -93,7 +94,7 @@ class REINFORCE(Agent):
 
         """Baseline implementations."""
         if self.baseline == "reward_mean":
-            baseline = rewards.mean()
+            baseline = tf.reduce_mean(rewards)
         else:
             baseline = 0
 

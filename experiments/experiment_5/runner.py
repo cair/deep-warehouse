@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 if __name__ == "__main__":
-    benchmark = True
+    benchmark = False
     episodes = 10000
     env_name = "CartPole-v0"
 

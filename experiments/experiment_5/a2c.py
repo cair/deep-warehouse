@@ -46,7 +46,8 @@ class A2C(REINFORCE):
                 agent=agent,
                 inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
+                optimizer=tf.keras.optimizers.RMSprop(lr=0.001) #  decay=0.99, epsilon=1e-5)
+
             )
         ),
         policy_update=dict(
@@ -56,15 +57,17 @@ class A2C(REINFORCE):
     )
 
     def __init__(self,
-                 value_coef=0.5,  # For action_value_loss, we multiply by this factor
-                 value_loss="huber",
-                 entropy_coef=0.0001,
+                 value_coef=1,  # For action_value_loss, we multiply by this factor
+                 value_loss="mse",
+                 entropy_coef=0.001,
+                 tau=0.95,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
 
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.entropy_coef = entropy_coef
+        self.tau = tau
 
         self.metrics.text("explained_variance", "Explained Variance is an attempt to measure the quality of the state "
                                                 "value.  \n"
@@ -88,7 +91,7 @@ class A2C(REINFORCE):
                       lambda prediction, data: self.policy_loss(
                           data["actions"],
                           self.advantage(
-                              data["policy"],
+                              self.inference_policy,
                               data["obs"],
                               data["obs1"],
                               data["rewards"],
@@ -128,9 +131,8 @@ class A2C(REINFORCE):
             loss = tf.keras.losses.mean_squared_error(returns, predicted)
         else:
             raise NotImplementedError("The loss %s is not implemented for %s." % (self.value_loss, self.name))
-        loss *= self.value_coef
 
-        return loss
+        return self.value_coef * tf.reduce_mean(loss)
 
     def entropy_loss(self, predicted):
         #a = tf.keras.losses.categorical_crossentropy(predicted, predicted, from_logits=True)
