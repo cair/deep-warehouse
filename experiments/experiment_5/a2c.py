@@ -87,9 +87,12 @@ class A2C(REINFORCE):
         self.add_loss("policy_loss",
                       lambda prediction, data: self.policy_loss(
                           data["actions"],
-                          self.discounted_returns(
+                          self.advantage(
+                              data["policy"],
+                              data["obs"],
+                              data["obs1"],
                               data["rewards"],
-                              data["terminals"]
+                              data["terminals"]  # TODO gamma, tau
                           ),
                           prediction["policy_logits"]
                       ))
@@ -102,17 +105,14 @@ class A2C(REINFORCE):
                 )
             )
 
-    def ADV(self, policy, obs, obs1, rewards, terminals):
-        R = super().discounted_returns(policy, obs, obs1, rewards, terminals)
+    def advantage(self, policy, obs, obs1, rewards, terminals):
+        R = self.discounted_returns(rewards, terminals)
+        values = tf.squeeze(policy(obs)["action_value"])
+        next_value = tf.squeeze(policy(obs1)["action_value"])
 
-        #V = tf.squeeze(policy(obs)["action_value"])
-        #V1 = tf.squeeze(policy(obs1)["action_value"])
-        #returns = self.GAE(V, V1, rewards, terminals)
+        self.metrics.add("explained_variance", utils.explained_variance(values, R))
 
-        #A = returns - V
-
-        return 0 # R + ((V1*self.gamma) - V)
-
+        return R + ((next_value*self.gamma) - values)
 
     def action_value_loss(self, returns, predicted):
         """

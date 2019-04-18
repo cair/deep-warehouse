@@ -99,15 +99,18 @@ class REINFORCE(Agent):
 
         return discounted_rewards - baseline
 
-    def GAE(self, values, next_value, rewards, terminals, gamma=0.99, tau=0.95):
-        values = np.concatenate((values.numpy(), [next_value]))
+    def generalized_advantage_estimation(self, values, next_value, rewards, terminals, gamma=0.99, tau=0.95):
+        # TODO not really working ...
+        nvalues = np.concatenate((values.numpy(), [next_value]))
         gae = 0
         returns = []
         for step in reversed(range(len(rewards))):
 
-            delta = rewards[step] + gamma * values[step + 1] * terminals[step] - values[step]
+            delta = rewards[step] + gamma * nvalues[step + 1] * terminals[step] - nvalues[step]
             gae = delta + gamma * tau * terminals[step] * gae
-            returns.insert(0, gae + values[step])
+            returns.insert(0, gae + nvalues[step])
+
+
         return returns
 
     """

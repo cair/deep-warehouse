@@ -1,4 +1,5 @@
 import sys
+import time
 from collections import deque
 
 import tensorflow as tf
@@ -24,6 +25,7 @@ class Sum(list):
 class Mean(deque):
     def __init__(self, name, dtype, maxlen):
         super().__init__(maxlen=maxlen)
+        self.name = name
 
     def __call__(self, a):
         self.append(a)
@@ -35,7 +37,7 @@ class Mean(deque):
         if len(self) == 0:
             return 0
 
-        return np.nanmean(self)
+        return np.mean(self)
 
 
 class InfiniteMean(Mean):

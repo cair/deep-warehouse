@@ -46,21 +46,21 @@ class PPO(A2C):
         entropy_coef=0.0,
         value_coef=0.5,
         value_loss="mse",
-        max_grad_norm=0.5,
+        max_grad_norm=None,
         policies=dict(
             # The training policy (The new one)
             target=lambda agent: PPOPolicy(
                 agent=agent,
                 inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=3e-4)
+                optimizer=tf.keras.optimizers.Adam(lr=0.001)
             ),
             # The old policy (The inference one)
             old=lambda agent: PPOPolicy(
                 agent=agent,
                 inference=True,
                 training=False,
-                optimizer=tf.keras.optimizers.Adam(lr=3e-4)
+                optimizer=tf.keras.optimizers.Adam(lr=0.001)
             ),
         )
     )
@@ -83,7 +83,9 @@ class PPO(A2C):
                 self.policies["old"](data["obs"],)["policy_logits"],
                 prediction["policy_logits"],
                 data["actions"],
-                self.G(
+                #self.discounted_returns(data["rewards"], data["terminals"])
+                self.advantage(
+                    self.policies["old"],
                     data["obs"],
                     data["obs1"],
                     data["rewards"],
@@ -95,7 +97,6 @@ class PPO(A2C):
 
         """Remove standard REINFORCE (pg) loss."""
         self.remove_loss("policy_loss")
-
 
     def clipped_surrogate_loss(self, PI_old, PI_new, A, ADV):
         new_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_old, 1e-7, 1)) * A, axis=1)

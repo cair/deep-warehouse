@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 
 if __name__ == "__main__":
-    benchmark = False
+    benchmark = True
     episodes = 10000
     env_name = "CartPole-v0"
 
@@ -57,9 +57,10 @@ if __name__ == "__main__":
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((A2C, dict(
+        submit((PPO, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
+            tensorboard_enabled=True
         ), episodes))
     else:
         agents = [
@@ -105,6 +106,11 @@ if __name__ == "__main__":
                 tensorboard_enabled=True,
                 tensorboard_path="./tb/",
                 name_prefix="SinglePolicy",
+            )],
+            [PPO, dict(
+                obs_space=env.observation_space,
+                action_space=env.action_space.n,
+                tensorboard_enabled=True
             )]
         ]
 

@@ -5,7 +5,7 @@ import os
 import inspect
 
 from experiments.experiment_5 import utils
-from experiments.experiment_5.batch_handler import BatchHandler, VectorBatchHandler
+from experiments.experiment_5.batch_handler import VectorBatchHandler
 from experiments.experiment_5.metrics import Metrics
 
 
@@ -168,12 +168,14 @@ class Agent:
                         terminals=terminals,
                         policy=policy
                     ))
+                    loss = tf.reduce_mean(loss)
 
                     """Add metric for loss"""
                     self.metrics.add(loss_name, loss, type="Mean")
 
                     """Add to total loss"""
                     total_loss += loss
+
 
             """Calculate gradients"""
             grads = tape.gradient(total_loss, policy.trainable_variables)
