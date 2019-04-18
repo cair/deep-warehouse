@@ -12,3 +12,4 @@ gym
 gym[atari]
 dill
 pathos
+pycallgraph

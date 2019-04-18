@@ -1,11 +1,13 @@
-import gym
+from absl import flags, app
 
+FLAGS = flags.FLAGS
+
+flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
+
+import gym
 import os
-# Disable CUDA
-#
 from experiments.experiment_5.a2c import A2C, A2CPolicy
 from experiments.experiment_5.pg import REINFORCE
-
 import pathos.multiprocessing as mp
 import tensorflow as tf
 
@@ -14,8 +16,7 @@ from experiments.experiment_5.ppo import PPO
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-
-if __name__ == "__main__":
+def main(argv):
     benchmark = False
     episodes = 10000
     env_name = "CartPole-v0"
@@ -116,3 +117,9 @@ if __name__ == "__main__":
 
         with mp.Pool(os.cpu_count()) as p:
             p.map(submit, [x + [episodes] for x in agents])
+
+
+
+if __name__ == "__main__":
+
+    app.run(main)

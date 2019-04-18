@@ -1,12 +1,17 @@
 import gym
+import pycallgraph
+from absl import flags
 import tensorflow as tf
 import datetime
 import os
-import inspect
+
+from pycallgraph.output import GraphvizOutput
 
 from experiments.experiment_5 import utils
 from experiments.experiment_5.batch_handler import VectorBatchHandler
 from experiments.experiment_5.metrics import Metrics
+
+FLAGS = flags.FLAGS
 
 
 class Agent:
@@ -97,6 +102,9 @@ class Agent:
             batch_size=batch_size
         )
 
+        """Debug flags."""
+        self.debug_callgraph = pycallgraph.PyCallGraph(output=GraphvizOutput(output_file='filter_max_depth.png')) if FLAGS.callgraph else None
+
     def add_loss(self, name, lambda_fn):
         self.loss_fns[name] = lambda_fn
 
@@ -110,6 +118,9 @@ class Agent:
         :param policy: Which policy to use. When None, self.inference_policy will be used.
         :return:
         """
+        if self.debug_callgraph:
+            self.debug_callgraph.start(reset=True)
+
         inputs = tf.cast(inputs, dtype=self.dtype)
 
         try:
@@ -204,6 +215,11 @@ class Agent:
 
             else:
                 raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
+
+        if self.debug_callgraph:
+            self.debug_callgraph.done()
+            print(self.debug_callgraph.output)
+
 
 
         """Update metrics for training"""
