@@ -20,7 +20,7 @@ class VectorBatchHandler:
 
         # Lists
         self._observations = []
-        self._observations1 = []
+        self.state = None # Current state (latest)
         self._actions = []
         self._action_logits = []
         self._rewards = []
@@ -39,7 +39,7 @@ class VectorBatchHandler:
         if obs is not None:
             self._observations.append(tf.cast(obs, dtype=self.dtype))
         if obs1 is not None:
-            self._observations1.append(tf.cast(obs1, dtype=self.dtype))
+            self.state = [obs1]  # Current state (latest)
         if action is not None:
             self._actions.append(tf.one_hot(action, self.action_space))
         if action_logits is not None:
@@ -71,7 +71,7 @@ class VectorBatchHandler:
 
     def clear(self):
         self._observations.clear()
-        self._observations1.clear()
+        self.state = None
         self._actions.clear()
         self._action_logits.clear()
         self._rewards.clear()
@@ -81,7 +81,7 @@ class VectorBatchHandler:
         return tf.split(tf.concat(self._observations, axis=0), self.minibatch_splits, axis=0)
 
     def obs1(self):
-        return tf.split(tf.concat(self._observations1, axis=0), self.minibatch_splits, axis=0)
+        return self.state
 
     def act(self):
         return tf.split(tf.stack(self._actions), self.minibatch_splits)
@@ -117,11 +117,11 @@ class BatchHandler:
             dtype = np.float16
 
         self.b_obs = np.zeros(shape=(batch_size,) + obs_space.shape, dtype=dtype)
-        self.b_obs1 = np.zeros(shape=(batch_size,) + obs_space.shape, dtype=dtype)
         self.b_act = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_act_logits = np.zeros(shape=(batch_size, action_space), dtype=dtype)
         self.b_rew = np.zeros(shape=(batch_size,), dtype=dtype)
         self.b_term = np.zeros(shape=(batch_size,), dtype=np.int8)
+
 
         self.batch_size = batch_size
         self.counter = 0
@@ -133,8 +133,6 @@ class BatchHandler:
     def obs(self):
         return self.b_obs[:self.last_counter]
 
-    def obs1(self):
-        return self.b_obs1[:self.last_counter]
 
     def act(self):
         return self.b_act[:self.last_counter]

@@ -5,6 +5,7 @@ import tensorflow as tf
 from absl import logging
 import numpy as np
 
+
 class Sum(list):
 
     def __init__(self, name, dtype, **kwargs):
@@ -31,7 +32,20 @@ class Mean(deque):
         self.clear()
 
     def result(self):
+        if len(self) == 0:
+            return 0
+
         return np.nanmean(self)
+
+
+class InfiniteMean(Mean):
+
+    def __init__(self, name, dtype, maxlen):
+        super().__init__(name, dtype, maxlen=None)
+
+
+class EpisodicMean(Mean):
+    pass
 
 
 class Metrics:

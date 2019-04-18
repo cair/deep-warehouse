@@ -41,9 +41,7 @@ class REINFORCE(Agent):
         self.add_loss("policy_loss",
                       lambda prediction, data: self.policy_loss(
                           data["actions"],
-                          self.G(
-                              data["obs"],
-                              data["obs1"],
+                          self.discounted_returns(
                               data["rewards"],
                               data["terminals"]
                           ),
@@ -79,7 +77,7 @@ class REINFORCE(Agent):
     # G is commonly refered to as the cumulative discounted rewards
     """
 
-    def G(self, obs, obs1, rewards, terminals):
+    def discounted_returns(self, rewards, terminals):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
         discounted_rewards = np.zeros_like(rewards)
 
@@ -100,6 +98,17 @@ class REINFORCE(Agent):
             baseline = 0
 
         return discounted_rewards - baseline
+
+    def GAE(self, values, next_value, rewards, terminals, gamma=0.99, tau=0.95):
+        values = np.concatenate((values.numpy(), [next_value]))
+        gae = 0
+        returns = []
+        for step in reversed(range(len(rewards))):
+
+            delta = rewards[step] + gamma * values[step + 1] * terminals[step] - values[step]
+            gae = delta + gamma * tau * terminals[step] * gae
+            returns.insert(0, gae + values[step])
+        return returns
 
     """
     A: one hot vectors of actions

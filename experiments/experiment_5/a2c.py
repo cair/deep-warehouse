@@ -5,7 +5,12 @@ from experiments.experiment_5.pg import REINFORCE
 import tensorflow as tf
 
 
+
 class A2CPolicy(PGPolicy):
+    """
+    Nice resources:
+    Blog: http://steven-anker.nl/blog/?p=184
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -53,7 +58,7 @@ class A2C(REINFORCE):
     def __init__(self,
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
-                 entropy_coef=0.00001,
+                 entropy_coef=0.0001,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
 
@@ -70,15 +75,24 @@ class A2C(REINFORCE):
         self.add_loss(
             "action_value_loss",
             lambda prediction, data: self.action_value_loss(
-                self.G(
-                    data["obs"],
-                    data["obs1"],
+                self.discounted_returns(
                     data["rewards"],
                     data["terminals"]
                 ),
                 prediction["action_value"]
             )
         )
+
+        """This overrides PG loss"""
+        self.add_loss("policy_loss",
+                      lambda prediction, data: self.policy_loss(
+                          data["actions"],
+                          self.discounted_returns(
+                              data["rewards"],
+                              data["terminals"]
+                          ),
+                          prediction["policy_logits"]
+                      ))
 
         if entropy_coef != 0:
             self.add_loss(
@@ -88,14 +102,17 @@ class A2C(REINFORCE):
                 )
             )
 
-    def G(self, obs, obs1, rewards, terminals):
-        R = super().G(obs, obs1, rewards, terminals)
-        V1 = tf.squeeze(self.predict(obs1)["action_value"])
-        V = tf.squeeze(self.predict(obs)["action_value"])
+    def ADV(self, policy, obs, obs1, rewards, terminals):
+        R = super().discounted_returns(policy, obs, obs1, rewards, terminals)
 
-        self.metrics.add("explained_variance", utils.explained_variance(V, R))
+        #V = tf.squeeze(policy(obs)["action_value"])
+        #V1 = tf.squeeze(policy(obs1)["action_value"])
+        #returns = self.GAE(V, V1, rewards, terminals)
 
-        return R + ((V1*self.gamma) - V)
+        #A = returns - V
+
+        return 0 # R + ((V1*self.gamma) - V)
+
 
     def action_value_loss(self, returns, predicted):
         """

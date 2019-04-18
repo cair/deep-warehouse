@@ -25,6 +25,7 @@ class Agent:
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
                  batch_size: int = 32,
+                 max_grad_norm=None,
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
@@ -52,6 +53,7 @@ class Agent:
         self.batch_size = batch_size
         self.mini_batches = mini_batches
         self.dtype = dtype
+        self.max_grad_norm = max_grad_norm
 
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
@@ -95,9 +97,11 @@ class Agent:
             batch_size=batch_size
         )
 
-
     def add_loss(self, name, lambda_fn):
         self.loss_fns[name] = lambda_fn
+
+    def remove_loss(self, name):
+        del self.loss_fns[name]
 
     # @tf.function
     def predict(self, inputs, policy=None):
@@ -131,7 +135,9 @@ class Agent:
         self.metrics.add("reward", reward)
 
         if terminal:
-            self.metrics.add("reward_avg", self.metrics.get("reward").result(), type="Mean")
+            r = self.metrics.get("reward").result(),
+            self.metrics.add("reward_avg", r,  type="Mean")
+            self.metrics.add("reward_avg_full", r, type="InfiniteMean")
             self.metrics.summarize()
 
         return self.batch.add(
@@ -159,7 +165,8 @@ class Agent:
                         actions=action,
                         action_logits=action_logits,
                         rewards=rewards,
-                        terminals=terminals
+                        terminals=terminals,
+                        policy=policy
                     ))
 
                     """Add metric for loss"""
@@ -171,8 +178,15 @@ class Agent:
             """Calculate gradients"""
             grads = tape.gradient(total_loss, policy.trainable_variables)
 
+            if self.max_grad_norm is not None:
+                grads, _grad_norm = tf.clip_by_global_norm(grads, self.max_grad_norm)
+
             """Backprop"""
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
+
+            """Record learning rate"""
+
+            self.metrics.add("learning_rate", policy.optimizer.lr.numpy(), "EpisodicMean")
 
         """Policy update strategy (If applicable)."""
         if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:

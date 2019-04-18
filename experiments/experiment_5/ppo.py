@@ -42,21 +42,25 @@ class PPO(A2C):
 
     DEFAULTS = dict(
         batch_mode="steps",
-        batch_size=64,
+        batch_size=32,
+        entropy_coef=0.0,
+        value_coef=0.5,
+        value_loss="mse",
+        max_grad_norm=0.5,
         policies=dict(
             # The training policy (The new one)
             target=lambda agent: PPOPolicy(
                 agent=agent,
                 inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                optimizer=tf.keras.optimizers.Adam(lr=3e-4)
             ),
             # The old policy (The inference one)
             old=lambda agent: PPOPolicy(
                 agent=agent,
                 inference=True,
                 training=False,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
+                optimizer=tf.keras.optimizers.Adam(lr=3e-4)
             ),
         )
     )
@@ -68,11 +72,7 @@ class PPO(A2C):
     # * finite horizon estimators
     # * entropy bonus
     def __init__(self,
-                 value_coef=0.5,  # For action_value_loss, we multiply by this factor
-                 value_loss="huber",
                  clipping_threshold=0.2,
-
-                 entropy_coef=0.0001,
                  **kwargs):
         super(PPO, self).__init__(**Agent.arguments())
         self.clipping_threshold = clipping_threshold
@@ -80,19 +80,37 @@ class PPO(A2C):
         self.add_loss(
             "clipped_surrogate_loss",
             lambda prediction, data: self.clipped_surrogate_loss(
-                data["obs"],
-                self.G(data["obs"], data["obs1"], data["rewards"], data["terminals"]),
-                prediction["policy_logits"]
+                self.policies["old"](data["obs"],)["policy_logits"],
+                prediction["policy_logits"],
+                data["actions"],
+                self.G(
+                    data["obs"],
+                    data["obs1"],
+                    data["rewards"],
+                    data["terminals"]
+                )
+
             )
         )
 
-    def clipped_surrogate_loss(self, obs, advantages, pi_new):
+        """Remove standard REINFORCE (pg) loss."""
+        self.remove_loss("policy_loss")
 
-        pi_old = self.policies["old"](obs)["policy_logits"]
 
-        r = tf.exp(pi_new - pi_old)
-        clip_prob = tf.clip_by_value(r, 1.-self.clipping_threshold, 1.+self.clipping_threshold)
+    def clipped_surrogate_loss(self, PI_old, PI_new, A, ADV):
+        new_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_old, 1e-7, 1)) * A, axis=1)
+        neg_log_new = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_new, 1e-7, 1)) * A, axis=1)
 
-        #ppo_loss = -tf.reduce_mean(tf.minimum(tf.multiply(r, advantages), tf.multiply(clip_prob, advantages)))
+        "Conservative Policy Iteration with multiplied advantages"
+        l_cpi = tf.exp(new_log_old - neg_log_new) * ADV
 
-        return 0 #ppo_loss
+        """Clipping the l_cpi according to paper."""
+        l_cpi_clipped = tf.clip_by_value(l_cpi, 1.0 - self.clipping_threshold, 1.0 + self.clipping_threshold) * ADV
+
+        """Use the lowest of l_cpi or clipped"""
+        l_clip = tf.minimum(l_cpi, l_cpi_clipped)
+
+        """Calculate the loss."""
+        pg_loss = -tf.reduce_mean(l_clip)
+
+        return pg_loss
