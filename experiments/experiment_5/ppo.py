@@ -3,7 +3,7 @@ from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy, Policy
 from experiments.experiment_5.pg import REINFORCE
 import tensorflow as tf
-
+import tensorflow_probability as tfp
 
 class PPOPolicy(Policy):
 
@@ -112,11 +112,12 @@ class PPO(A2C):
         self.remove_loss("policy_loss")
 
     def clipped_surrogate_loss(self, PI_old, PI_new, A, ADV):
-        new_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_old, 1e-7, 1)) * A, axis=1)
+
+        neg_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_old, 1e-7, 1)) * A, axis=1)
         neg_log_new = tf.reduce_sum(-tf.math.log(tf.clip_by_value(PI_new, 1e-7, 1)) * A, axis=1)
 
         "Conservative Policy Iteration with multiplied advantages"
-        l_cpi = tf.exp(new_log_old - neg_log_new) * ADV
+        l_cpi = tf.exp(neg_log_old - neg_log_new) * ADV
 
         """Clipping the l_cpi according to paper."""
         l_cpi_clipped = tf.clip_by_value(l_cpi, 1.0 - self.epsilon, 1.0 + self.epsilon) * ADV
