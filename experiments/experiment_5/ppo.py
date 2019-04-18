@@ -81,6 +81,7 @@ class PPO(A2C):
     # https://nervanasystems.github.io/coach/components/agents/policy_optimization/cppo.html
     # https://medium.com/mlreview/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565 Variance
     # https://github.com/hill-a/stable-baselines
+    # Much info here about stop gradient https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/rl/ppo.py also how to use Distributions.
 
     # TODO
     # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
