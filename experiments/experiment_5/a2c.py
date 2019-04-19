@@ -32,7 +32,7 @@ class A2C(REINFORCE):
     DEFAULTS = dict(
         batch_mode="steps",
         batch_size=64,
-        entropy_coef=0.001,
+        entropy_coef=0.0001,
         policies=dict(
             policy=lambda agent: A2CPolicy(
                 agent=agent,
@@ -44,7 +44,7 @@ class A2C(REINFORCE):
                 agent=agent,
                 inference=False,
                 training=True,
-                optimizer=tf.keras.optimizers.RMSprop(lr=0.001)  # decay=0.99, epsilon=1e-5)
+                optimizer=tf.keras.optimizers.Adam(lr=0.001)  # decay=0.99, epsilon=1e-5)
 
             )
         ),
@@ -81,13 +81,16 @@ class A2C(REINFORCE):
         super().G(data, **kwargs)
         discounted_rewards = data["G"]
 
-        action_values = tf.squeeze(data["action_value"])
-        #next_value = data["policy"](data["obs1"])["action_value"]
+        action_values = data["action_value"]
+        next_values = tf.squeeze(tf.concat([action_values[1:], data["policy"](data["obs1"])["action_value"]], axis=0))
+        action_values = tf.squeeze(action_values)
 
-        advantage = discounted_rewards - action_values
+        advantage = discounted_rewards + (self.gamma*next_values - action_values)
+        # TODO think this is correct. must check with other implementations if next_values is correct....
         self.metrics.add("explained_variance", utils.explained_variance(action_values, discounted_rewards))
 
         data["advantage"] = advantage
+
 
     def advantage(self, policy, obs, obs1, rewards, terminals):
         R = self.discounted_returns(rewards, terminals)
@@ -111,8 +114,7 @@ class A2C(REINFORCE):
         else:
             raise NotImplementedError("The loss %s is not implemented for %s." % (self.value_loss, self.name))
         """
-
-        loss = tf.reduce_sum(tf.square(advantage))
-        tf.stop_gradient(advantage)
+        loss = tf.reduce_mean(tf.square(advantage))
+        #tf.stop_gradient(advantage)
 
         return self.value_coef * loss
