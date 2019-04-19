@@ -1,7 +1,7 @@
 from experiments.experiment_5.a2c import A2C
 from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy, Policy
-from experiments.experiment_5.pg import REINFORCE
+from experiments.experiment_5.reinforce import REINFORCE
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -45,7 +45,7 @@ class PPO(A2C):
         batch_mode="steps",
         batch_size=64,
         entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
-        value_coef=1.0,
+        value_coef=0.5,
         value_loss="huber",
         max_grad_norm=None,
         baseline="reward_mean",
@@ -82,9 +82,10 @@ class PPO(A2C):
     # https://medium.com/mlreview/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565 Variance
     # https://github.com/hill-a/stable-baselines
     # Much info here about stop gradient https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/rl/ppo.py also how to use Distributions.
-
+    # https://github.com/tensorflow/agents
     # TODO
     # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
+    # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
     def __init__(self,
                  epsilon=0.1,
                  **kwargs):
@@ -130,3 +131,6 @@ class PPO(A2C):
         pg_loss = -tf.reduce_mean(l_clip)
 
         return pg_loss
+
+    def action_value_loss(self, returns, predicted):
+        return -super().action_value_loss(returns, predicted)

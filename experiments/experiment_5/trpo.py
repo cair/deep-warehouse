@@ -1,6 +1,6 @@
 from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy, Policy
-from experiments.experiment_5.pg import REINFORCE
+from experiments.experiment_5.reinforce import REINFORCE
 import tensorflow as tf
 
 

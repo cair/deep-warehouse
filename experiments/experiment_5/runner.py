@@ -7,7 +7,7 @@ flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorit
 import gym
 import os
 from experiments.experiment_5.a2c import A2C, A2CPolicy
-from experiments.experiment_5.pg import REINFORCE
+from experiments.experiment_5.reinforce import REINFORCE
 import pathos.multiprocessing as mp
 import tensorflow as tf
 
@@ -34,8 +34,6 @@ def main(argv):
                 steps = 0
                 terminal = False
                 obs = env.reset()
-                cum_loss = 0
-                loss_n = 0
 
                 while not terminal:
                     action = agent.get_action(obs[None, :])
@@ -58,10 +56,11 @@ def main(argv):
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((PPO, dict(
+        submit((REINFORCE, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
-            tensorboard_enabled=True
+            tensorboard_enabled=True,
+            inference_only=False
         ), episodes))
     else:
         agents = [

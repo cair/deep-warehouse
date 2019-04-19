@@ -1,5 +1,7 @@
-import tensorflow as tf
+import time
 
+import tensorflow as tf
+import tensorflow_probability as tfp
 from experiments.experiment_5 import utils
 
 
@@ -32,7 +34,7 @@ class PGPolicy(Policy):
         self.h_3 = tf.keras.layers.Dense(64, activation='relu', dtype=self.agent.dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
 
         # Probabilties of each action
-        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits', dtype=self.agent.dtype)
+        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="linear", name='policy_logits', dtype=self.agent.dtype)
 
     def shared(self, x):
         x = self.h_1(x)
@@ -42,6 +44,9 @@ class PGPolicy(Policy):
 
     def call(self, inputs):
         x = self.shared(inputs)
+        x = self.logits(x)
+        x = tfp.distributions.Categorical(logits=x)
+
         return dict(
-            policy_logits=self.logits(x)
+            policy_logits=x
         )

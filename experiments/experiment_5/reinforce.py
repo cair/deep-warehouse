@@ -31,22 +31,21 @@ class REINFORCE(Agent):
 
     def __init__(self,
                  gamma=0.99,
+                 entropy_coef=0.0001,
                  baseline=None,
                  **kwargs):
         super(REINFORCE, self).__init__(**Agent.arguments())
 
+        self.entropy_coef = entropy_coef
         self.gamma = gamma
         self.baseline = baseline
 
-        self.add_loss("policy_loss",
-                      lambda prediction, data: self.policy_loss(
-                          data["actions"],
-                          self.discounted_returns(
-                              data["rewards"],
-                              data["terminals"]
-                          ),
-                          prediction["policy_logits"]
-                      ))
+        self.add_calculation("G", self.G)
+        self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will "
+                                                       "oscillate with training.")
+
+        if entropy_coef != 0:
+            self.add_loss("entropy_loss", self.entropy_loss)
 
     def reset(self):
         self.batch.counter = 0
@@ -56,12 +55,14 @@ class REINFORCE(Agent):
         prediction = super().predict(observation)
         policy_logits = prediction["policy_logits"]
 
-        action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(policy_logits).numpy())
+        action_sample = tf.squeeze(policy_logits.sample())
+        action_logits = tf.squeeze(policy_logits.logits)  # TODO can probably be removed?
+        #action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(policy_logits).numpy())
 
-        self.batch.add(obs=observation, action_logits=policy_logits, action=action_sample)
+        self.batch.add(obs=observation,  action=action_sample, action_logits=action_logits)
 
         self.metrics.add("inference_time", time.perf_counter() - start)
-        return action_sample
+        return action_sample.numpy()
 
     def observe(self, obs1, reward, terminal):
         super().observe(obs1, reward, terminal)
@@ -114,23 +115,25 @@ class REINFORCE(Agent):
 
         return returns
 
+    def G(self, data, **kwargs):
+        data["G"] = self.discounted_returns(kwargs["rewards"], kwargs["terminals"])
+
     """
-    A: one hot vectors of actions
+    actions: one hot vectors of actions
     G: discounted rewards (advantages)
     predicted_logits: The network's predicted logits.
     """
-    def policy_loss(self, A, G, predicted_logits):
+    def policy_loss(self, policy_logits=None, actions=None, G=None, **kwargs):
 
-        neg_log_policy = -tf.math.log(tf.clip_by_value(predicted_logits, 1e-7, 1))
-        loss = tf.reduce_mean(tf.reduce_sum(neg_log_policy * A, axis=1) * G)
+        neg_log_policy = -policy_logits.log_prob(tf.argmax(actions, axis=1))
 
-        #log_action_prob = tf.keras.backend.log(
-        #    tf.keras.backend.sum(predicted_logits * A, axis=1)
-        #)
+        loss = neg_log_policy * G
 
-        #loss = - log_action_prob * G
-        #loss = tf.keras.backend.mean(loss)
+
         return loss
 
+    def entropy_loss(self, policy_logits=None, obs=None, **kwargs):
+        #entropy_loss = - tf.reduce_sum(policy_logits.logits * tf.math.log(policy_logits.logits))
+        return tf.reduce_sum(policy_logits.entropy()) * self.entropy_coef
 
 

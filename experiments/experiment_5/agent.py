@@ -34,17 +34,17 @@ class Agent:
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
-                 name_prefix=""):
+                 name_prefix=None,
+                 inference_only=False):
         args = utils.get_defaults(self, Agent.arguments())
 
         self.name = self.__class__.__name__
 
         if tensorboard_enabled:
             logdir = os.path.join(
-                tensorboard_path, "%s-%s_%s" %
+                tensorboard_path, "%s_%s" %
                                   (
-                                      self.name,
-                                      name_prefix,
+                                      self.name + name_prefix if name_prefix else self.name,
                                       datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
             )
             writer = tf.summary.create_file_writer(logdir)
@@ -59,6 +59,7 @@ class Agent:
         self.mini_batches = mini_batches
         self.dtype = dtype
         self.max_grad_norm = max_grad_norm
+        self.inference_only = inference_only
 
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
@@ -67,6 +68,8 @@ class Agent:
         self.metrics = Metrics(self)
         self.last_predict = None
         self.loss_fns = dict()
+        self.calculation = dict()
+        self.calculation_list = []
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
 
@@ -102,11 +105,23 @@ class Agent:
             batch_size=batch_size
         )
 
-        """Debug flags."""
-        self.debug_callgraph = pycallgraph.PyCallGraph(output=GraphvizOutput(output_file='filter_max_depth.png')) if FLAGS.callgraph else None
+        """Default agent calculations."""
+        self.add_calculation("predict", self.calculation_predict)
 
-    def add_loss(self, name, lambda_fn):
+    def add_calculation(self, name, fn):
+        self.calculation[name] = len(self.calculation_list)
+        self.calculation_list.append(fn)
+
+    def remove_calculation(self, name):
+        self.calculation_list.remove(self.calculation[name])
+        del self.calculation[name]
+
+    def add_loss(self, name, lambda_fn, tb_text=None):
         self.loss_fns[name] = lambda_fn
+
+        if tb_text:
+            """Add text on tensorboard"""
+            self.metrics.text(name, tb_text)
 
     def remove_loss(self, name):
         del self.loss_fns[name]
@@ -118,9 +133,6 @@ class Agent:
         :param policy: Which policy to use. When None, self.inference_policy will be used.
         :return:
         """
-        if self.debug_callgraph:
-            self.debug_callgraph.start(reset=True)
-
         inputs = tf.cast(inputs, dtype=self.dtype)
 
         try:
@@ -159,6 +171,9 @@ class Agent:
         )
 
     def train(self, obs, obs1, action, action_logits, rewards, terminals):
+        if self.inference_only:
+            return 0
+
         total_loss = 0
         self.policy_update_counter += 1
 
@@ -166,19 +181,25 @@ class Agent:
         for policy in self.training_policies:
 
             with tf.GradientTape() as tape:
-                prediction = policy(obs)
+
+                """Pack data container"""
+                data = dict(
+                    obs=obs,
+                    obs1=obs1,
+                    actions=action,
+                    action_logits=action_logits,
+                    rewards=rewards,
+                    terminals=terminals,
+                    policy=policy
+                )
+
+                """Run all calculations"""
+                for calculation in self.calculation_list:
+                    calculation(data=data, **data)
 
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.loss_fns.items():
-                    loss = loss_fn(prediction, data=dict(
-                        obs=obs,
-                        obs1=obs1,
-                        actions=action,
-                        action_logits=action_logits,
-                        rewards=rewards,
-                        terminals=terminals,
-                        policy=policy
-                    ))
+                    loss = loss_fn(**data)
                     loss = tf.reduce_mean(loss)
 
                     """Add metric for loss"""
@@ -186,7 +207,6 @@ class Agent:
 
                     """Add to total loss"""
                     total_loss += loss
-
 
             """Calculate gradients"""
             grads = tape.gradient(total_loss, policy.trainable_variables)
@@ -211,18 +231,13 @@ class Agent:
                 for policy in self.training_policies:
                     self.inference_policy.set_weights(policy.get_weights())
                 self.policy_update_counter = 0
-
-
             else:
                 raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
-
-        if self.debug_callgraph:
-            self.debug_callgraph.done()
-            print(self.debug_callgraph.output)
-
-
 
         """Update metrics for training"""
         self.metrics.add("iterations_per_episode", 1, "Sum")
         self.metrics.add("total_loss", total_loss, "Mean")
         return total_loss
+
+    def calculation_predict(self, data, policy=None, obs=None, **kwargs):
+        data.update(policy(obs))
