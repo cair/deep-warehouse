@@ -20,9 +20,17 @@ def explained_variance(ypred, y):
         ev<0  =>  worse than just predicting zero
 
     """
+
     assert y.ndim == 1 and ypred.ndim == 1
+
+    """s = time.perf_counter()
+    _, vary = tf.nn.moments(y, axes=[0])
+    _, varpred = tf.nn.moments(y - ypred, axes=[0])
+    ev = tf.subtract(1.0,tf.divide(varpred, vary))
+    print(time.perf_counter() - s)"""
     vary = np.var(y)
-    return np.nan if vary == 0 else 1 - np.var(y - ypred) / vary
+    ev = np.nan if vary == 0 else 1 - np.var(y - ypred) / vary
+    return np.clip(ev, -1, 1)
 
 
 def explained_variance_2d(ypred, y):

@@ -164,9 +164,9 @@ class Agent:
             self.metrics.summarize()
 
         return self.batch.add(
-            obs1=tf.cast(obs1, dtype=self.dtype),
-            reward=tf.cast(reward, dtype=self.dtype),
-            terminal=tf.cast(terminal, tf.bool),
+            obs1=obs1,
+            reward=reward,
+            terminal=terminal,
             increment=True
         )
 
@@ -200,10 +200,9 @@ class Agent:
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.loss_fns.items():
                     loss = loss_fn(**data)
-                    loss = tf.reduce_mean(loss)
 
                     """Add metric for loss"""
-                    self.metrics.add(loss_name, loss, type="Mean")
+                    self.metrics.add(loss_name, loss, type="EpisodicMean")
 
                     """Add to total loss"""
                     total_loss += loss

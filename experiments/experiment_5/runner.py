@@ -15,15 +15,15 @@ from experiments.experiment_5.ppo import PPO
 
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+# https://github.com/ADGEfficiency/dsr-rl/blob/master/PITCHME.md
 def main(argv):
-    benchmark = False
-    episodes = 10000
+    benchmark = True
+    episodes = 100000
     env_name = "CartPole-v0"
 
     def submit(args):
         try:
-            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
             env = gym.make(env_name)
 
             AGENT, spec, episodes = args
@@ -39,7 +39,7 @@ def main(argv):
                     action = agent.get_action(obs[None, :])
                     obs, reward, terminal, info = env.step(action)
                     reward = 0 if terminal else reward
-                    agent.observe(obs[None, :], reward, terminal)
+                    agent.observe(obs, reward, terminal)
                     steps += 1
         except Exception as e:
             print(e)

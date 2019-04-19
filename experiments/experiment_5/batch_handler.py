@@ -1,3 +1,5 @@
+import time
+
 import tensorflow as tf
 import gym
 import numpy as np
@@ -37,17 +39,17 @@ class VectorBatchHandler:
     def add(self, obs=None, obs1=None, action=None, action_logits=None, reward=None, terminal=None, increment=False):
 
         if obs is not None:
-            self._observations.append(tf.cast(obs, dtype=self.dtype))
+            self._observations.append(np.squeeze(obs))
         if obs1 is not None:
-            self.state = [obs1]  # Current state (latest)
+            self.state = [[obs1]]  # Current state (latest)
         if action is not None:
             self._actions.append(tf.one_hot(action, self.action_space))
         if action_logits is not None:
-            self._action_logits.append(tf.cast(action_logits, dtype=self.dtype))
+            self._action_logits.append(action_logits)
         if reward is not None:
-            self._rewards.append(tf.cast(reward, dtype=self.dtype))
+            self._rewards.append(reward)
         if terminal is not None:
-            self._terminals.append(tf.cast(terminal, dtype=self.dtype))
+            self._terminals.append(float(terminal))
             #if terminal:
                 #self._terminal_indexes.append(len(self._terminals))
 
@@ -78,22 +80,22 @@ class VectorBatchHandler:
         self._terminals.clear()
 
     def obs(self):
-        return tf.split(tf.concat(self._observations, axis=0), self.minibatch_splits, axis=0)
+        return tf.split(tf.convert_to_tensor(self._observations), self.minibatch_splits)
 
     def obs1(self):
-        return self.state
+        return tf.convert_to_tensor(self.state)
 
     def act(self):
-        return tf.split(tf.stack(self._actions), self.minibatch_splits)
+        return tf.split(tf.convert_to_tensor(self._actions), self.minibatch_splits)
 
     def act_logits(self):
-        return tf.split(tf.concat(self._action_logits, axis=0), self.minibatch_splits)
+        return tf.split(tf.convert_to_tensor(self._action_logits), self.minibatch_splits)
 
     def rewards(self):
-        return tf.split(tf.stack(self._rewards), self.minibatch_splits)
+        return tf.split(tf.convert_to_tensor(self._rewards), self.minibatch_splits)
 
     def terminals(self):
-        return tf.split(tf.stack(self._terminals), self.minibatch_splits)
+        return tf.split(tf.convert_to_tensor(self._terminals), self.minibatch_splits)
 
     def get(self):
         return [self.obs(), self.obs1(), self.act(), self.act_logits(), self.rewards(), self.terminals()]

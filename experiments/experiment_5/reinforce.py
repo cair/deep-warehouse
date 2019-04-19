@@ -31,7 +31,7 @@ class REINFORCE(Agent):
 
     def __init__(self,
                  gamma=0.99,
-                 entropy_coef=0.0001,
+                 entropy_coef=0.01,
                  baseline=None,
                  **kwargs):
         super(REINFORCE, self).__init__(**Agent.arguments())
@@ -73,7 +73,7 @@ class REINFORCE(Agent):
             for obs, obs1, action, action_logits, rewards, terminals in zip(*self.batch.get()):
                 loss = self.train(obs, obs1, action, action_logits, rewards, terminals)
 
-            self.metrics.add("backprop_time", time.perf_counter() - s)
+            self.metrics.add("backprop_time", time.perf_counter() - s, "EpisodicMean")
             self.batch.clear()  # TODO?
 
     """
@@ -82,7 +82,9 @@ class REINFORCE(Agent):
 
     def discounted_returns(self, rewards, terminals):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
+
         discounted_rewards = np.zeros_like(rewards)
+
         cum_r = 0
         l = len(rewards)
         for i in reversed(range(0, l)):
@@ -116,7 +118,9 @@ class REINFORCE(Agent):
         return returns
 
     def G(self, data, **kwargs):
-        data["G"] = self.discounted_returns(kwargs["rewards"], kwargs["terminals"])
+        data["G"] = tf.convert_to_tensor(
+            self.discounted_returns(kwargs["rewards"], kwargs["terminals"])
+        )
 
     """
     actions: one hot vectors of actions
@@ -129,11 +133,12 @@ class REINFORCE(Agent):
 
         loss = neg_log_policy * G
 
-
-        return loss
+        return tf.reduce_mean(loss)
 
     def entropy_loss(self, policy_logits=None, obs=None, **kwargs):
         #entropy_loss = - tf.reduce_sum(policy_logits.logits * tf.math.log(policy_logits.logits))
-        return tf.reduce_sum(policy_logits.entropy()) * self.entropy_coef
+        entropy_loss = tf.reduce_mean(policy_logits.entropy())
+
+        return -entropy_loss * self.entropy_coef
 
 
