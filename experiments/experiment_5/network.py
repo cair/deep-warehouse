@@ -44,9 +44,11 @@ class PGPolicy(Policy):
 
     def call(self, inputs):
         x = self.shared(inputs)
-        x = self.logits(x)
-        x = tfp.distributions.Categorical(logits=x)
+        y = self.logits(x)
+
+        x = tfp.distributions.Categorical(logits=y)
 
         return dict(
-            policy_logits=x
+            policy_logits=y,
+            policy_sample=tf.squeeze(x.sample())
         )

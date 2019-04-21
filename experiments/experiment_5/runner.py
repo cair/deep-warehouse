@@ -1,5 +1,7 @@
 from absl import flags, app
 
+from experiments.experiment_5.environment import Environment
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
@@ -10,24 +12,42 @@ from experiments.experiment_5.a2c import A2C, A2CPolicy
 from experiments.experiment_5.reinforce import REINFORCE
 import pathos.multiprocessing as mp
 import tensorflow as tf
-
+import numpy as np
 from experiments.experiment_5.ppo import PPO
 
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # https://github.com/ADGEfficiency/dsr-rl/blob/master/PITCHME.md
 def main(argv):
-    benchmark = True
+    benchmark = False
     episodes = 100000
     env_name = "CartPole-v0"
 
+    test = [
+        [0, 1, 2,3 ,4 ,5],
+        [0, 1, 2,3 ,4 ,5]
+    ]
+
     def submit(args):
-        try:
+        AGENT, spec, episodes = args
+        agent = AGENT(**spec)
+
+        env = Environment(env_name)
+
+        while env.episode < episodes:
+            action = agent.predict(env.state)
+            state1, reward, terminal = env.step(action)
+            agent.observe(
+                obs1=state1,
+                reward=reward,
+                terminal=terminal
+            )
+
+        """try:
             #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
             env = gym.make(env_name)
 
-            AGENT, spec, episodes = args
-            agent = AGENT(**spec)
+
 
             for e in range(episodes):
 
@@ -43,7 +63,7 @@ def main(argv):
                     steps += 1
         except Exception as e:
             print(e)
-            raise e
+            raise e"""
 
     env = gym.make(env_name)
 
@@ -56,7 +76,7 @@ def main(argv):
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((A2C, dict(
+        submit((REINFORCE, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,

@@ -6,6 +6,63 @@ import numpy as np
 from absl import logging
 
 
+class DynamicBatch:
+
+    def __init__(self, agent, **kwargs):
+        self.agent = agent
+        self.episodic = self.agent.batch_mode == "episodic"
+        self.bsize = self.agent.batch_size
+        self.mb = self.agent.mini_batches
+
+        self.dtype = agent.dtype
+
+        self.counter = 0
+        self.data = dict()
+
+        if self.episodic:
+            self.mb_count = 1
+            if self.mb != 1:
+                logging.log(logging.WARN, "Batch mode is set to 'episodic' while batch_sets is not 1. Ignoring "
+                                          "mini_batches config.")
+        else:
+            self.mb_count = int((self.bsize * self.mb) / self.bsize)
+
+        self.total_size = self.bsize * self.mb
+
+    def add(self, **kwargs):
+
+        for k, v in kwargs.items():
+            try:
+                data_container = self.data[k]
+            except KeyError:
+                self.data[k] = []
+                data_container = self.data[k]
+
+            data_container.append(v)
+        self.counter += 1
+
+        if self.episodic:
+            try:
+                return bool(kwargs["terminal"])
+
+            except KeyError:
+                raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
+        return self.counter == self.total_size
+
+    def flush(self):
+        data = dict()
+        for k in list(self.data.keys()):
+            print(k, self.data[k])
+            data[k] = np.asarray(
+                np.vsplit(
+                    np.asarray(self.data[k], dtype=self.dtype.name),
+                    self.mb_count
+                ))
+            del self.data[k]
+        print(data)
+
+
+
 class VectorBatchHandler:
 
     def __init__(self, agent,
@@ -24,10 +81,9 @@ class VectorBatchHandler:
         self._observations = []
         self.state = None # Current state (latest)
         self._actions = []
-        self._action_logits = []
         self._rewards = []
         self._terminals = []
-
+        self._values = []
 
         if self.episodic:
             self.minibatch_splits = 1
@@ -36,22 +92,20 @@ class VectorBatchHandler:
         else:
             self.minibatch_splits = int((self.batch_size * self.batch_sets) / self.batch_size)
 
-    def add(self, obs=None, obs1=None, action=None, action_logits=None, reward=None, terminal=None, increment=False):
+    def add(self, obs=None, obs1=None, action=None, reward=None, terminal=None, policy_sample=None, action_value=None, increment=False, **kwargs):
 
         if obs is not None:
             self._observations.append(np.squeeze(obs))
         if obs1 is not None:
             self.state = [[obs1]]  # Current state (latest)
-        if action is not None:
-            self._actions.append(tf.one_hot(action, self.action_space))
-        if action_logits is not None:
-            self._action_logits.append(action_logits)
+        if policy_sample is not None:
+            self._actions.append(tf.one_hot(policy_sample, self.action_space))
+        if action_value is not None:
+            self._values.append(np.expand_dims(np.squeeze(action_value, 1), 1))
         if reward is not None:
-            self._rewards.append(reward)
+            self._rewards.append([reward])
         if terminal is not None:
-            self._terminals.append(float(terminal))
-            #if terminal:
-                #self._terminal_indexes.append(len(self._terminals))
+            self._terminals.append([float(terminal)])
 
         if increment:
 
@@ -75,30 +129,32 @@ class VectorBatchHandler:
         self._observations.clear()
         self.state = None
         self._actions.clear()
-        self._action_logits.clear()
+
         self._rewards.clear()
         self._terminals.clear()
 
     def obs(self):
-        return tf.split(tf.convert_to_tensor(self._observations), self.minibatch_splits)
+
+        return np.asarray(np.vsplit(np.asarray(self._observations, dtype=self.dtype.name), self.minibatch_splits))
 
     def obs1(self):
-        return tf.convert_to_tensor(self.state)
+        return np.asarray(self.state, dtype=self.dtype.name)
 
     def act(self):
-        return tf.split(tf.convert_to_tensor(self._actions), self.minibatch_splits)
-
-    def act_logits(self):
-        return tf.split(tf.convert_to_tensor(self._action_logits), self.minibatch_splits)
+        return np.asarray(np.vsplit(np.asarray(self._actions, dtype=self.dtype.name), self.minibatch_splits))
 
     def rewards(self):
-        return tf.split(tf.convert_to_tensor(self._rewards), self.minibatch_splits)
+        return np.asarray(np.vsplit(np.asarray(self._rewards, dtype=self.dtype.name), self.minibatch_splits)) # # .swapaxes(1, 0)
 
     def terminals(self):
-        return tf.split(tf.convert_to_tensor(self._terminals), self.minibatch_splits)
+        return np.asarray(np.vsplit(np.asarray(self._terminals, dtype=self.dtype.name), self.minibatch_splits))
+
+    def values(self):
+        print(np.asarray(self._values, dtype=self.dtype.name).shape, "lal")
+        return np.asarray(np.vsplit(np.asarray(self._values, dtype=self.dtype.name), self.minibatch_splits))
 
     def get(self):
-        return [self.obs(), self.obs1(), self.act(), self.act_logits(), self.rewards(), self.terminals()]
+        return [self.obs(), self.obs1(), self.act(), self.values(), self.rewards(), self.terminals()]
 
 
 class BatchHandler:

@@ -22,6 +22,24 @@ class Sum(list):
         return np.sum(self)
 
 
+class InfiniteSum:
+
+    def __init__(self, name, dtype, **kwargs):
+        super().__init__()
+        self.c =0
+
+    def __call__(self, a):
+        self.c += a
+
+    def reset_states(self):
+        pass
+
+    def result(self):
+        return self.c
+
+
+
+
 class Mean(deque):
     def __init__(self, name, dtype, maxlen):
         super().__init__(maxlen=maxlen)

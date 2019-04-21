@@ -2,6 +2,67 @@ import time
 import ray
 import asyncio
 import gym
+import numpy as np
+import sys
+class Environment:
+
+    def __init__(self, env, episodes=sys.maxsize):
+
+        if isinstance(env, str):
+            self.env = gym.make(env)
+        else:
+            self.env = env
+            # TODO - Make has attribute checks for step, reset.. etc
+        self.episode = 0
+        self.max_episode = episodes
+        self.steps = 0
+
+        self.state = self.env.reset()
+        self.next_state = None
+        self.reward = None
+        self.terminal = None
+        self.info = None
+
+    def step(self, action):
+        self.state, self.reward, self.terminal, self.info = self.env.step(action)
+        #self.reward = 0 if self.terminal else self.reward # Discounting should handle this anyway.
+
+        self.steps += 1
+        if self.terminal:
+            self.steps = 0
+            self.state = self.env.reset()
+            self.episode += 1
+
+        # S, A, R, T
+        #state = self.state
+        #self.state = self.next_state
+        return self.state, self.reward, self.terminal
+
+"""
+      #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            env = gym.make(env_name)
+
+            AGENT, spec, episodes = args
+            agent = AGENT(**spec)
+
+            for e in range(episodes):
+
+                steps = 0
+                terminal = False
+                obs = env.reset()
+
+                while not terminal:
+                    action = agent.get_action(obs[None, :])
+                    obs, reward, terminal, info = env.step(action)
+                    reward = 0 if terminal else reward
+                    agent.observe(obs, reward, terminal)
+                    steps += 1
+        except Exception as e:
+            print(e)
+            raise e
+"""
+
+
 
 
 @ray.remote

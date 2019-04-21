@@ -8,7 +8,7 @@ import os
 from pycallgraph.output import GraphvizOutput
 
 from experiments.experiment_5 import utils
-from experiments.experiment_5.batch_handler import VectorBatchHandler
+from experiments.experiment_5.batch_handler import VectorBatchHandler, DynamicBatch
 from experiments.experiment_5.metrics import Metrics
 
 FLAGS = flags.FLAGS
@@ -66,7 +66,9 @@ class Agent:
         self._name_prefix = name_prefix
 
         self.metrics = Metrics(self)
-        self.last_predict = None
+
+        self.data = dict()  # Keeps track of all data per iteration. Resets after train()
+
         self.loss_fns = dict()
         self.calculation = dict()
         self.calculation_list = []
@@ -98,15 +100,17 @@ class Agent:
         self.policy_update_frequency = self.policy_update["interval"]
         self.policy_update_enabled = len(self.policies) > 1
 
-        self.batch = VectorBatchHandler(
+        self.batch = DynamicBatch(
             agent=self,
             obs_space=obs_space,
             action_space=action_space,
             batch_size=batch_size
         )
 
+        self.obs = None  # Last seen observation
+
         """Default agent calculations."""
-        self.add_calculation("predict", self.calculation_predict)
+        #
 
     def add_calculation(self, name, fn):
         self.calculation[name] = len(self.calculation_list)
@@ -127,25 +131,22 @@ class Agent:
         del self.loss_fns[name]
 
     # @tf.function
-    def predict(self, inputs, policy=None):
+    def predict(self, inputs):
         """
         :param inputs: DATA INPUT
         :param policy: Which policy to use. When None, self.inference_policy will be used.
         :return:
         """
-        inputs = tf.cast(inputs, dtype=self.dtype)
+        if inputs.ndim == 1:
+            inputs = inputs[None, :]
 
-        try:
-            self.last_predict = self.inference_policy(inputs) if policy is None else self.policies[policy](inputs)
-        except KeyError:
-            raise ValueError("There is no policy with the name %s" % policy)
+        prediction = self.inference_policy(inputs)
+        self.data.update(prediction)
+        self.data["obs"] = inputs
 
-        return self.last_predict
+        return prediction
 
-    def get_action(self, inputs):
-        raise NotImplementedError("get_action is not implemented in Agent base class.")
-
-    def observe(self, obs1, reward, terminal):
+    def observe(self, **kwargs):
         """
         Observe the resulting transition
         :param obs1: The next state s_t+1
@@ -154,23 +155,22 @@ class Agent:
         modify reward in some cases.
         :return:
         """
-        self.metrics.add("steps", 1)
-        self.metrics.add("reward", reward)
-
-        if terminal:
-            r = self.metrics.get("reward").result(),
-            self.metrics.add("reward_avg", r,  type="Mean")
-            self.metrics.add("reward_avg_full", r, type="InfiniteMean")
-            self.metrics.summarize()
-
+        self.data.update(**kwargs)
         return self.batch.add(
-            obs1=obs1,
-            reward=reward,
-            terminal=terminal,
-            increment=True
+            **self.data
         )
 
-    def train(self, obs, obs1, action, action_logits, rewards, terminals):
+        # Todo IMPLEMENT THIS.
+        #self.metrics.add("steps", 1)
+        #self.metrics.add("reward", reward)
+
+        #if terminal:
+        #    r = self.metrics.get("reward").result(),
+        #    self.metrics.add("reward_avg", r,  type="Mean")
+        #    self.metrics.add("reward_avg_full", r, type="InfiniteMean")
+        #    self.metrics.summarize()
+
+    def train(self, **kwargs):
         if self.inference_only:
             return 0
 
@@ -183,23 +183,15 @@ class Agent:
             with tf.GradientTape() as tape:
 
                 """Pack data container"""
-                data = dict(
-                    obs=obs,
-                    obs1=obs1,
-                    actions=action,
-                    action_logits=action_logits,
-                    rewards=rewards,
-                    terminals=terminals,
-                    policy=policy
-                )
+                kwargs["policy"] = policy
 
                 """Run all calculations"""
                 for calculation in self.calculation_list:
-                    calculation(data=data, **data)
+                    calculation(data=kwargs, **kwargs)
 
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.loss_fns.items():
-                    loss = loss_fn(**data)
+                    loss = loss_fn(**kwargs)
 
                     """Add metric for loss"""
                     self.metrics.add(loss_name, loss, type="EpisodicMean")
@@ -235,8 +227,6 @@ class Agent:
 
         """Update metrics for training"""
         self.metrics.add("iterations_per_episode", 1, "Sum")
+        self.metrics.add("total_epochs", 1, "InfiniteSum")
         self.metrics.add("total_loss", total_loss, "Mean")
         return total_loss
-
-    def calculation_predict(self, data, policy=None, obs=None, **kwargs):
-        data.update(policy(obs))

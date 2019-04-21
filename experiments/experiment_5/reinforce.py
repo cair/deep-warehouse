@@ -34,44 +34,44 @@ class REINFORCE(Agent):
                  entropy_coef=0.01,
                  baseline=None,
                  **kwargs):
+
         super(REINFORCE, self).__init__(**Agent.arguments())
 
         self.entropy_coef = entropy_coef
         self.gamma = gamma
         self.baseline = baseline
 
-        self.add_calculation("G", self.G)
-        self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will "
-                                                       "oscillate with training.")
+        #self.add_calculation("G", self.G)
+        #self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will oscillate with training.")
 
-        if entropy_coef != 0:
-            self.add_loss("entropy_loss", self.entropy_loss)
+        #if entropy_coef != 0:
+        #    self.add_loss("entropy_loss", self.entropy_loss)
 
-    def reset(self):
-        self.batch.counter = 0
-
-    def get_action(self, observation):
+    def predict(self, inputs):
         start = time.perf_counter()
-        prediction = super().predict(observation)
-        policy_logits = prediction["policy_logits"]
-
-        action_sample = tf.squeeze(policy_logits.sample())
-        action_logits = tf.squeeze(policy_logits.logits)  # TODO can probably be removed?
-        #action_sample = np.random.choice(np.arange(self.action_space), p=tf.squeeze(policy_logits).numpy())
-
-        self.batch.add(obs=observation,  action=action_sample, action_logits=action_logits)
+        prediction = super().predict(inputs)
+        action_sample = prediction["policy_sample"]  # We sample directly in the call of the model.
 
         self.metrics.add("inference_time", time.perf_counter() - start)
         return action_sample.numpy()
 
-    def observe(self, obs1, reward, terminal):
-        super().observe(obs1, reward, terminal)
+    def observe(self, **kwargs):
+        ready = super().observe(**kwargs)
 
-        if self.batch.counter == 0:
+        if ready:
             s = time.perf_counter()
 
-            for obs, obs1, action, action_logits, rewards, terminals in zip(*self.batch.get()):
-                loss = self.train(obs, obs1, action, action_logits, rewards, terminals)
+            dataset = self.batch.flush()
+            print(dataset)
+            for obs, obs1, action, values, rewards, terminals in zip(*self.batch.get()):
+                loss = self.train(**dict(
+                    obs=obs,
+                    obs1=obs1,
+                    action=action,
+                    values=values,
+                    rewards=rewards,
+                    terminals=terminals
+                ))
 
             self.metrics.add("backprop_time", time.perf_counter() - s, "EpisodicMean")
             self.batch.clear()  # TODO?
@@ -128,7 +128,6 @@ class REINFORCE(Agent):
     predicted_logits: The network's predicted logits.
     """
     def policy_loss(self, policy_logits=None, actions=None, G=None, **kwargs):
-
         neg_log_policy = -policy_logits.log_prob(tf.argmax(actions, axis=1))
 
         loss = neg_log_policy * G

@@ -15,13 +15,19 @@ class A2CPolicy(PGPolicy):
         super().__init__(**kwargs)
 
         self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_5 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_6 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1, dtype=self.agent.dtype)
 
     def call(self, inputs):
         data = super().call(inputs)
 
-        x = self.shared(inputs)
-        x = self.h_4(x)
+        #x = self.shared(inputs)
+        #x = self.h_4(x)
+
+        x = self.h_4(inputs)
+        x = self.h_5(x)
+        x = self.h_6(x)
         action_value = self.action_value(x)
 
         data["action_value"] = action_value
@@ -32,6 +38,7 @@ class A2C(REINFORCE):
     DEFAULTS = dict(
         batch_mode="steps",
         batch_size=64,
+        mini_batches=1,
         entropy_coef=0.01,
         policies=dict(
             policy=lambda agent: A2CPolicy(
@@ -55,7 +62,7 @@ class A2C(REINFORCE):
     )
 
     def __init__(self,
-                 value_coef=1,  # For action_value_loss, we multiply by this factor
+                 value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="huber",
                  tau=0.95,
                  **kwargs):
@@ -79,25 +86,21 @@ class A2C(REINFORCE):
     def G(self, data, **kwargs):
         """Override G of REINFORCE"""
         super().G(data, **kwargs)
-        discounted_rewards = tf.convert_to_tensor(data["G"])
+        discounted_rewards = data["G"]
 
-        action_values = tf.squeeze(data["action_value"])
-        V1 = tf.squeeze(data["policy"](data["obs1"])["action_value"])
+        action_values = data["values"]
+
+        V1 = data["policy"](data["obs1"])["action_value"]
         #advantage = discounted_rewards + (self.gamma*V1 - action_values)
 
         advantage = discounted_rewards + (V1*self.gamma) - action_values
 
-        self.metrics.add("explained_variance", utils.explained_variance(action_values, discounted_rewards), "EpisodicMean")
+        self.metrics.add("explained_variance", utils.explained_variance_2d(action_values, discounted_rewards), "EpisodicMean")
 
         data["returns"] = discounted_rewards
         data["G"] = advantage
 
-    def advantage(self, policy, obs, obs1, rewards, terminals):
-        R = self.discounted_returns(rewards, terminals)
-        values = tf.squeeze(policy(obs)["action_value"])
-        next_value = tf.squeeze(policy(obs1)["action_value"])
 
-        return R + ((next_value * self.gamma) - values)
 
     def action_value_loss(self, action_value=None, advantage=None, returns=None, **kwargs):
         """
@@ -110,14 +113,14 @@ class A2C(REINFORCE):
         action_value = tf.squeeze(action_value)  # TODO optimize away
 
         if self.value_loss == "huber":
-            loss = tf.losses.Huber()
-            loss = loss(action_value, returns)
+            loss = tf.keras.losses.Huber()(returns, action_value)
+
         elif self.value_loss == "mse":
-            loss = tf.keras.losses.mean_squared_error(action_value, returns)
+            loss = tf.keras.losses.mean_squared_error(returns, action_value)
         else:
             raise NotImplementedError("The loss %s is not implemented for %s." % (self.value_loss, self.name))
 
         #loss = tf.reduce_mean(tf.square(action_value - G))
-        #tf.stop_gradient(advantage)
+        tf.stop_gradient(returns)
 
         return self.value_coef * loss
