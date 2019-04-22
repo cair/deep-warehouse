@@ -109,9 +109,6 @@ class Agent:
 
         self.obs = None  # Last seen observation
 
-        """Default agent calculations."""
-        #
-
     def add_calculation(self, name, fn):
         self.calculation[name] = len(self.calculation_list)
         self.calculation_list.append(fn)
@@ -187,7 +184,7 @@ class Agent:
 
                 """Run all calculations"""
                 for calculation in self.calculation_list:
-                    calculation(data=kwargs, **kwargs)
+                    calculation(**kwargs)
 
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.loss_fns.items():

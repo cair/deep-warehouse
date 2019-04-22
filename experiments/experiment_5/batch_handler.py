@@ -38,6 +38,12 @@ class DynamicBatch:
                 self.data[k] = []
                 data_container = self.data[k]
 
+            # Convert to numpy
+            v = np.squeeze(np.asarray(v))
+
+            if v.ndim == 0:
+                v = np.reshape(v, v.shape + (1, ))
+
             data_container.append(v)
         self.counter += 1
 
@@ -47,19 +53,19 @@ class DynamicBatch:
 
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
+
         return self.counter == self.total_size
 
     def flush(self):
         data = dict()
         for k in list(self.data.keys()):
-            print(k, self.data[k])
             data[k] = np.asarray(
                 np.vsplit(
                     np.asarray(self.data[k], dtype=self.dtype.name),
                     self.mb_count
                 ))
             del self.data[k]
-        print(data)
+        return data
 
 
 

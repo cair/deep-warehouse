@@ -44,11 +44,10 @@ class PGPolicy(Policy):
 
     def call(self, inputs):
         x = self.shared(inputs)
-        y = self.logits(x)
-
-        x = tfp.distributions.Categorical(logits=y)
-
+        x = self.logits(x)
+        action_sample = tf.squeeze(tfp.distributions.Categorical(logits=x).sample())
+        print(tf.one_hot(action_sample, self.agent.action_space))
         return dict(
-            policy_logits=y,
-            policy_sample=tf.squeeze(x.sample())
+            logits=x,
+            actions=action_sample
         )
