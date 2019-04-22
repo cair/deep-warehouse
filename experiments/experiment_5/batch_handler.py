@@ -41,10 +41,10 @@ class DynamicBatch:
             # Convert to numpy
             v = np.squeeze(np.asarray(v))
 
-            if v.ndim == 0:
-                v = np.reshape(v, v.shape + (1, ))
+            #if v.ndim == 0:
+            #    v = np.reshape(v, v.shape + (1, ))
 
-            data_container.append(v)
+            data_container.append(np.squeeze(v))
         self.counter += 1
 
         if self.episodic:
@@ -57,13 +57,28 @@ class DynamicBatch:
         return self.counter == self.total_size
 
     def flush(self):
-        data = dict()
+        """data = dict()
         for k in list(self.data.keys()):
             data[k] = np.asarray(
-                np.vsplit(
+                np.split(
                     np.asarray(self.data[k], dtype=self.dtype.name),
-                    self.mb_count
+                    self.mb_count,
+                    axis=0
                 ))
+            del self.data[k]
+        return data"""
+
+        # TODO typical optimization point
+        data = [{} for _ in range(self.mb_count)]
+        for k in list(self.data.keys()):
+            for i, elem in enumerate(np.asarray(
+                np.split(
+                    np.asarray(self.data[k], dtype=self.dtype.name),
+                    self.mb_count,
+                    axis=0
+                ))):
+                data[i][k] = elem
+
             del self.data[k]
         return data
 

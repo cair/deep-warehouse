@@ -1,65 +1,13 @@
-from experiments.experiment_5 import utils
+from experiments.experiment_5 import utils, defaults
 from experiments.experiment_5.agent import Agent
 from experiments.experiment_5.network import PGPolicy
 from experiments.experiment_5.reinforce import REINFORCE
 import tensorflow as tf
 import numpy as np
 
-class A2CPolicy(PGPolicy):
-    """
-    Nice resources:
-    Blog: http://steven-anker.nl/blog/?p=184
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.h_5 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.h_6 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.action_value = tf.keras.layers.Dense(1, dtype=self.agent.dtype)
-
-    def call(self, inputs):
-        data = super().call(inputs)
-
-        #x = self.shared(inputs)
-        #x = self.h_4(x)
-
-        x = self.h_4(inputs)
-        x = self.h_5(x)
-        x = self.h_6(x)
-        action_value = self.action_value(x)
-
-        data["action_value"] = action_value
-        return data
-
 
 class A2C(REINFORCE):
-    DEFAULTS = dict(
-        batch_mode="steps",
-        batch_size=64,
-        mini_batches=1,
-        entropy_coef=0.01,
-        policies=dict(
-            policy=lambda agent: A2CPolicy(
-                agent=agent,
-                inference=True,
-                training=False,
-                optimizer=None
-            ),
-            target=lambda agent: A2CPolicy(
-                agent=agent,
-                inference=False,
-                training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)  # decay=0.99, epsilon=1e-5)
-
-            )
-        ),
-        policy_update=dict(
-            interval=5,  # Update every 5 training epochs,
-            strategy="copy",  # "copy, mean"
-        )
-    )
+    DEFAULTS = defaults.A2C
 
     def __init__(self,
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor

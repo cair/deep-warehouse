@@ -1,9 +1,6 @@
-import time
-
 import tensorflow as tf
 import tensorflow_probability as tfp
 from experiments.experiment_5 import utils
-
 
 class Policy(tf.keras.models.Model):
 
@@ -42,12 +39,73 @@ class PGPolicy(Policy):
         x = self.h_3(x)
         return x
 
-    def call(self, inputs):
+    def call(self, inputs, **kwargs):
         x = self.shared(inputs)
         x = self.logits(x)
-        action_sample = tf.squeeze(tfp.distributions.Categorical(logits=x).sample())
-        print(tf.one_hot(action_sample, self.agent.action_space))
         return dict(
-            logits=x,
-            actions=action_sample
+            logits=tfp.distributions.Categorical(logits=x)
         )
+
+
+class A2CPolicy(PGPolicy):
+    """
+    Nice resources:
+    Blog: http://steven-anker.nl/blog/?p=184
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_5 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_6 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.action_value = tf.keras.layers.Dense(1, dtype=self.agent.dtype)
+
+    def call(self, inputs):
+        data = super().call(inputs)
+
+        #x = self.shared(inputs)
+        #x = self.h_4(x)
+
+        x = self.h_4(inputs)
+        x = self.h_5(x)
+        x = self.h_6(x)
+        action_value = self.action_value(x)
+
+        data["action_value"] = action_value
+        return data
+
+
+class PPOPolicy(Policy):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.h_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_2 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_3 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+
+        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits',
+                                            dtype=self.agent.dtype)
+
+        self.state_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.state_value = tf.keras.layers.Dense(1,
+                                                 activation="linear",
+                                                 name="state_value",
+                                                 dtype=self.agent.dtype
+                                                 )
+
+    def call(self, inputs):
+        x = self.h_1(inputs)
+        x = self.h_2(x)
+        x = self.h_3(x)
+        x = self.h_4(x)
+
+        policy_logits = self.logits(x)
+        state_value = self.state_value(self.state_value_1(x))
+
+        return {
+            "policy_logits": policy_logits,
+            "action_value": state_value
+        }

@@ -1,6 +1,7 @@
 from absl import flags, app
 
 from experiments.experiment_5.environment import Environment
+from experiments.experiment_5.network import A2CPolicy
 
 FLAGS = flags.FLAGS
 
@@ -8,7 +9,7 @@ flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorit
 
 import gym
 import os
-from experiments.experiment_5.a2c import A2C, A2CPolicy
+from experiments.experiment_5.a2c import A2C
 from experiments.experiment_5.reinforce import REINFORCE
 import pathos.multiprocessing as mp
 import tensorflow as tf

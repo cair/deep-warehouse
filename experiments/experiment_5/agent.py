@@ -35,6 +35,8 @@ class Agent:
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
                  name_prefix=None,
+                 metrics_enabled=dict(),
+                 metrics_trigger="terminal",
                  inference_only=False):
         args = utils.get_defaults(self, Agent.arguments())
 
@@ -66,12 +68,13 @@ class Agent:
         self._name_prefix = name_prefix
 
         self.metrics = Metrics(self)
+        self.metrics_trigger = metrics_trigger
+        self.metrics_enabled = metrics_enabled
 
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
 
-        self.loss_fns = dict()
-        self.calculation = dict()
-        self.calculation_list = []
+        self.losses = dict()
+        self.operations = dict()
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
 
@@ -109,23 +112,21 @@ class Agent:
 
         self.obs = None  # Last seen observation
 
-    def add_calculation(self, name, fn):
-        self.calculation[name] = len(self.calculation_list)
-        self.calculation_list.append(fn)
+    def add_operation(self, name, fn):
+        self.operations[name] = fn
 
     def remove_calculation(self, name):
-        self.calculation_list.remove(self.calculation[name])
-        del self.calculation[name]
+        del self.operations[name]
 
     def add_loss(self, name, lambda_fn, tb_text=None):
-        self.loss_fns[name] = lambda_fn
+        self.losses[name] = lambda_fn
 
         if tb_text:
             """Add text on tensorboard"""
             self.metrics.text(name, tb_text)
 
     def remove_loss(self, name):
-        del self.loss_fns[name]
+        del self.losses[name]
 
     # @tf.function
     def predict(self, inputs):
@@ -136,12 +137,9 @@ class Agent:
         """
         if inputs.ndim == 1:
             inputs = inputs[None, :]
+        self.data["inputs"] = inputs
 
-        prediction = self.inference_policy(inputs)
-        self.data.update(prediction)
-        self.data["obs"] = inputs
-
-        return prediction
+        return self.inference_policy(inputs)
 
     def observe(self, **kwargs):
         """
@@ -152,20 +150,15 @@ class Agent:
         modify reward in some cases.
         :return:
         """
+        self.metrics.add("steps", 1)
         self.data.update(**kwargs)
+
+        if kwargs[self.metrics_trigger]:
+            self.metrics.summarize()
+
         return self.batch.add(
             **self.data
         )
-
-        # Todo IMPLEMENT THIS.
-        #self.metrics.add("steps", 1)
-        #self.metrics.add("reward", reward)
-
-        #if terminal:
-        #    r = self.metrics.get("reward").result(),
-        #    self.metrics.add("reward_avg", r,  type="Mean")
-        #    self.metrics.add("reward_avg_full", r, type="InfiniteMean")
-        #    self.metrics.summarize()
 
     def train(self, **kwargs):
         if self.inference_only:
@@ -182,13 +175,15 @@ class Agent:
                 """Pack data container"""
                 kwargs["policy"] = policy
 
+                pred = policy(**kwargs)
+
                 """Run all calculations"""
-                for calculation in self.calculation_list:
-                    calculation(**kwargs)
+                for opname, operation in self.operations.items():
+                    kwargs[opname] = operation(**kwargs)
 
                 """Run all loss functions"""
-                for loss_name, loss_fn in self.loss_fns.items():
-                    loss = loss_fn(**kwargs)
+                for loss_name, loss_fn in self.losses.items():
+                    loss = loss_fn(pred=pred, **kwargs)
 
                     """Add metric for loss"""
                     self.metrics.add(loss_name, loss, type="EpisodicMean")

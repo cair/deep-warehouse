@@ -1,11 +1,6 @@
-import os
-
-
+from experiments.experiment_5 import defaults
 from experiments.experiment_5.agent import Agent
-from experiments.experiment_5.network import PGPolicy
-
 import tensorflow as tf
-import gym
 import numpy as np
 from absl import flags, logging
 import time
@@ -15,19 +10,8 @@ logging.set_verbosity(logging.DEBUG)
 
 
 class REINFORCE(Agent):
+    DEFAULTS = defaults.REINFORCE
 
-    DEFAULTS = dict(
-        batch_mode="episodic",
-        batch_size=32,
-        policies=dict(
-            target=lambda agent: PGPolicy(
-                agent=agent,
-                inference=True,
-                training=True,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
-            )
-        )
-    )
 
     def __init__(self,
                  gamma=0.99,
@@ -41,18 +25,21 @@ class REINFORCE(Agent):
         self.gamma = gamma
         self.baseline = baseline
 
-        self.add_calculation("discounted_reward", self.discounted_returns)
+        self.add_operation("advantage", self.discounted_returns)
         self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will oscillate with training.")
 
-        #if entropy_coef != 0:
-        #    self.add_loss("entropy_loss", self.entropy_loss)
+        if entropy_coef != 0:
+            self.add_loss("entropy_loss", self.entropy_loss)
 
     def predict(self, inputs):
         start = time.perf_counter()
-        prediction = super().predict(inputs)
+        pred = super().predict(inputs)
+
+        action = tf.squeeze(pred["logits"].sample())
+        self.data["action"] = tf.one_hot(action, self.action_space)
 
         self.metrics.add("inference_time", time.perf_counter() - start)
-        return np.argmax(prediction["actions"])
+        return action.numpy()
 
     def observe(self, **kwargs):
         ready = super().observe(**kwargs)
@@ -60,26 +47,47 @@ class REINFORCE(Agent):
         if ready:
             s = time.perf_counter()
 
-            data = self.batch.flush()
-            for mb in tf.data.Dataset.from_tensor_slices(data):
-                self.train(**mb)
 
-            #self.metrics.add("backprop_time", time.perf_counter() - s, "EpisodicMean")
+            data = self.batch.flush()
+            for batch in data:
+
+                self.train(**batch)
+
+            #for mb in tf.data.Dataset.from_tensor_slices(data):
+            #    self.train(**mb)
+
+            self.metrics.add("backprop_time", time.perf_counter() - s, "EpisodicMean")
 
     """
     # G is commonly refered to as the cumulative discounted rewards
     """
 
-    def discounted_returns(self, rewards, terminals, **kwargs):
-        # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
-        print(kwargs)
 
-        discounted_rewards = np.zeros_like(rewards)
+
+    def policy_loss(self, pred, action=None, advantage=None, **kwargs):
+        logits = pred["logits"]
+        #neg_log_p = tf.maximum(1e-6, tf.reduce_sum(-tf.math.log(logits) * action, axis=1))
+        #return tf.reduce_mean(neg_log_p * advantage)
+
+        neg_log_policy = -logits.log_prob(tf.argmax(action, axis=1))
+
+        return tf.reduce_mean(advantage * neg_log_policy)
+
+    def entropy_loss(self, pred, obs=None, **kwargs):
+        logits = pred["logits"]
+        entropy_loss = logits.entropy()
+        return tf.reduce_mean(-entropy_loss * self.entropy_coef)
+
+
+    def discounted_returns(self, reward, terminal, **kwargs):
+        # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
+
+        discounted_rewards = np.zeros_like(reward)
 
         cum_r = 0
-        l = len(rewards)
+        l = len(reward)
         for i in reversed(range(0, l)):
-            cum_r = rewards[i] + (cum_r * self.gamma * (1 - terminals[i]))
+            cum_r = reward[i] + (cum_r * self.gamma * (1 - terminal[i]))
 
             discounted_rewards[i] = cum_r
 
@@ -88,7 +96,7 @@ class REINFORCE(Agent):
 
         """Baseline implementations."""
         if self.baseline == "reward_mean":
-            baseline = tf.reduce_mean(rewards)
+            baseline = np.mean(reward)
         else:
             baseline = 0
 
@@ -105,30 +113,4 @@ class REINFORCE(Agent):
             gae = delta + gamma * tau * terminals[step] * gae
             returns.insert(0, gae + nvalues[step])
 
-
         return returns
-
-    def G(self, data, **kwargs):
-        data["G"] = tf.convert_to_tensor(
-            self.discounted_returns(kwargs["rewards"], kwargs["terminals"])
-        )
-
-    """
-    actions: one hot vectors of actions
-    G: discounted rewards (advantages)
-    predicted_logits: The network's predicted logits.
-    """
-    def policy_loss(self, logits=None, actions=None, G=None, **kwargs):
-
-        neg_log_p = -tf.math.log_softmax(logits) * actions
-        loss = neg_log_p * G
-
-        return tf.reduce_mean(loss)
-
-    def entropy_loss(self, logits=None, obs=None, **kwargs):
-        #entropy_loss = - tf.reduce_sum(policy_logits.logits * tf.math.log(policy_logits.logits))
-
-        entropy_loss = -tf.reduce_sum(logits * tf.math.log(logits))
-        return -entropy_loss * self.entropy_coef
-
-

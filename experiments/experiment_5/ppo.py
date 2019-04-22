@@ -1,91 +1,29 @@
+from experiments.experiment_5 import defaults
 from experiments.experiment_5.a2c import A2C
 from experiments.experiment_5.agent import Agent
-from experiments.experiment_5.network import PGPolicy, Policy
-from experiments.experiment_5.reinforce import REINFORCE
 import tensorflow as tf
-import tensorflow_probability as tfp
 
-class PPOPolicy(Policy):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self.h_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.h_2 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.h_3 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.h_4 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-
-        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits',
-                                            dtype=self.agent.dtype)
-
-        self.state_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.state_value = tf.keras.layers.Dense(1,
-                                                 activation="linear",
-                                                 name="state_value",
-                                                 dtype=self.agent.dtype
-                                                 )
-
-    def call(self, inputs):
-        x = self.h_1(inputs)
-        x = self.h_2(x)
-        x = self.h_3(x)
-        x = self.h_4(x)
-
-        policy_logits = self.logits(x)
-        state_value = self.state_value(self.state_value_1(x))
-
-        return {
-            "policy_logits": policy_logits,
-            "action_value": state_value
-        }
+# TODO
+# * Add KL-penalized objective (loss)
+# * Clipped surrogate objective
+# * generalized advantage estimation  - WHEN RNN
+# * finite horizon estimators
+# * entropy bonus
+# L2 regularization on networks. (Needed?)
+# https://nervanasystems.github.io/coach/components/agents/policy_optimization/cppo.html
+# https://medium.com/mlreview/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565 Variance
+# https://github.com/hill-a/stable-baselines
+# Much info here about stop gradient https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/rl/ppo.py also how to use Distributions.
+# https://github.com/tensorflow/agents
+# TODO
+# https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
+# https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
 
 class PPO(A2C):
-    DEFAULTS = dict(
-        batch_mode="steps",
-        batch_size=64,
-        entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
-        value_coef=0.5,
-        value_loss="huber",
-        max_grad_norm=None,
-        baseline="reward_mean",
-        policies=dict(
-            # The training policy (The new one)
-            target=lambda agent: PPOPolicy(
-                agent=agent,
-                inference=False,
-                training=True,
-                optimizer=tf.keras.optimizers.RMSprop(lr=0.001)
-            ),
-            # The old policy (The inference one)
-            old=lambda agent: PPOPolicy(
-                agent=agent,
-                inference=True,
-                training=False,
-                optimizer=tf.keras.optimizers.Adam(lr=0.001)
-            ),
-        ),
-        policy_update=dict(
-            interval=5,  # Update every 10 training epochs,
-            strategy="copy"
-        )
-    )
+    DEFAULTS = defaults.PPO
 
-    # TODO
-    # * Add KL-penalized objective (loss)
-    # * Clipped surrogate objective
-    # * generalized advantage estimation  - WHEN RNN
-    # * finite horizon estimators
-    # * entropy bonus
-    # L2 regularization on networks. (Needed?)
-    # https://nervanasystems.github.io/coach/components/agents/policy_optimization/cppo.html
-    # https://medium.com/mlreview/making-sense-of-the-bias-variance-trade-off-in-deep-reinforcement-learning-79cf1e83d565 Variance
-    # https://github.com/hill-a/stable-baselines
-    # Much info here about stop gradient https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/rl/ppo.py also how to use Distributions.
-    # https://github.com/tensorflow/agents
-    # TODO
-    # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
-    # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
+
     def __init__(self,
                  epsilon=0.1,
                  **kwargs):
