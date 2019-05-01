@@ -1,9 +1,10 @@
-from experiments.experiment_5 import defaults
-from experiments.experiment_5.agent import Agent
 import tensorflow as tf
 import numpy as np
 from absl import flags, logging
 import time
+
+from experiments.experiment_5.agents.agent import Agent
+from experiments.experiment_5.agents.configuration import defaults
 
 FLAGS = flags
 logging.set_verbosity(logging.DEBUG)
@@ -38,7 +39,7 @@ class REINFORCE(Agent):
         action = tf.squeeze(pred["logits"].sample())
         self.data["action"] = tf.one_hot(action, self.action_space)
 
-        self.metrics.add("inference_time", time.perf_counter() - start)
+        self.metrics.add("inference_time", time.perf_counter() - start, ["mean_episode"], "summary")
         return action.numpy()
 
     def observe(self, **kwargs):
@@ -50,13 +51,9 @@ class REINFORCE(Agent):
 
             data = self.batch.flush()
             for batch in data:
-
                 self.train(**batch)
 
-            #for mb in tf.data.Dataset.from_tensor_slices(data):
-            #    self.train(**mb)
-
-            self.metrics.add("backprop_time", time.perf_counter() - s, "EpisodicMean")
+            self.metrics.add("training_time", time.perf_counter() - s, ["mean_episode"], "summary")
 
     """
     # G is commonly refered to as the cumulative discounted rewards

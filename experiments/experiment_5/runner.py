@@ -1,20 +1,19 @@
 from absl import flags, app
 
 from experiments.experiment_5.environment import Environment
-from experiments.experiment_5.network import A2CPolicy
 
+from experiments.experiment_5.agents.a2c import A2C
+from experiments.experiment_5.agents.ppo import PPO
+from experiments.experiment_5.agents.reinforce import REINFORCE
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
 
 import gym
 import os
-from experiments.experiment_5.a2c import A2C
-from experiments.experiment_5.reinforce import REINFORCE
+
 import pathos.multiprocessing as mp
 import tensorflow as tf
-import numpy as np
-from experiments.experiment_5.ppo import PPO
 
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -23,11 +22,6 @@ def main(argv):
     benchmark = False
     episodes = 100000
     env_name = "CartPole-v0"
-
-    test = [
-        [0, 1, 2,3 ,4 ,5],
-        [0, 1, 2,3 ,4 ,5]
-    ]
 
     def submit(args):
         AGENT, spec, episodes = args

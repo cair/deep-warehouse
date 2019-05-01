@@ -1,7 +1,9 @@
-from experiments.experiment_5.network import PGPolicy, A2CPolicy, PPOPolicy
+
 import tensorflow as tf
 
-REINFORCE = DEFAULTS = dict(
+from experiments.experiment_5.agents.configuration.models import PGPolicy, A2CPolicy, PPOPolicy
+
+REINFORCE = dict(
     batch_mode="episodic",
     batch_size=32,
     policies=dict(

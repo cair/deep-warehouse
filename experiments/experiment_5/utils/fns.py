@@ -48,7 +48,7 @@ def update(d, u):
         #
         #    d[k] = update(d.get(k, {}), v)
         #else:
-            d[k] = v
+        d[k] = v
     return d
 
 

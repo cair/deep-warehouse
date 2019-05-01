@@ -1,9 +1,9 @@
-from experiments.experiment_5 import utils, defaults
-from experiments.experiment_5.agent import Agent
-from experiments.experiment_5.network import PGPolicy
-from experiments.experiment_5.reinforce import REINFORCE
 import tensorflow as tf
-import numpy as np
+
+from experiments.experiment_5 import utils
+from experiments.experiment_5.agents.agent import Agent
+from experiments.experiment_5.agents.configuration import defaults
+from experiments.experiment_5.agents.reinforce import REINFORCE
 
 
 class A2C(REINFORCE):

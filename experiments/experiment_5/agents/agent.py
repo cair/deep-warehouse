@@ -1,15 +1,12 @@
 import gym
-import pycallgraph
 from absl import flags
 import tensorflow as tf
 import datetime
 import os
 
-from pycallgraph.output import GraphvizOutput
-
 from experiments.experiment_5 import utils
-from experiments.experiment_5.batch_handler import VectorBatchHandler, DynamicBatch
-from experiments.experiment_5.metrics import Metrics
+from experiments.experiment_5.storage.batch_handler import DynamicBatch
+from experiments.experiment_5.utils.metrics import Metrics
 
 FLAGS = flags.FLAGS
 
@@ -35,8 +32,6 @@ class Agent:
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
                  name_prefix=None,
-                 metrics_enabled=dict(),
-                 metrics_trigger="terminal",
                  inference_only=False):
         args = utils.get_defaults(self, Agent.arguments())
 
@@ -68,11 +63,7 @@ class Agent:
         self._name_prefix = name_prefix
 
         self.metrics = Metrics(self)
-        self.metrics_trigger = metrics_trigger
-        self.metrics_enabled = metrics_enabled
-
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
-
         self.losses = dict()
         self.operations = dict()
 
@@ -94,7 +85,7 @@ class Agent:
         self.inference_policy = self.inference_policy[0]
 
         """This list contains names of policies that should be trained"""
-        self.training_policies = [x for k, x in self.policies.items() if x.training]
+        self.training_policies = [(k, x) for k, x in self.policies.items() if x.training]
 
         # Policy update. This is the strategy used when using multiple policies (ie one trainer and one predictor)
         # Settings here determine how updates should be performed.
@@ -150,10 +141,13 @@ class Agent:
         modify reward in some cases.
         :return:
         """
-        self.metrics.add("steps", 1)
         self.data.update(**kwargs)
 
-        if kwargs[self.metrics_trigger]:
+        """Metrics update."""
+        self.metrics.add("steps", 1, ["sum_episode"], "summary")
+        self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent"], "summary")
+
+        if kwargs["terminal"]:
             self.metrics.summarize()
 
         return self.batch.add(
@@ -168,7 +162,7 @@ class Agent:
         self.policy_update_counter += 1
 
         """Policy training procedure"""
-        for policy in self.training_policies:
+        for name, policy in self.training_policies:
 
             with tf.GradientTape() as tape:
 
@@ -186,7 +180,7 @@ class Agent:
                     loss = loss_fn(pred=pred, **kwargs)
 
                     """Add metric for loss"""
-                    self.metrics.add(loss_name, loss, type="EpisodicMean")
+                    self.metrics.add(loss_name + "/" + name, loss, ["mean_episode"], "loss")
 
                     """Add to total loss"""
                     total_loss += loss
@@ -202,7 +196,7 @@ class Agent:
 
             """Record learning rate"""
 
-            self.metrics.add("learning_rate", policy.optimizer.lr.numpy(), "EpisodicMean")
+            self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_episode"], "hyper-parameter")
 
         """Policy update strategy (If applicable)."""
         if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:
@@ -211,14 +205,14 @@ class Agent:
             if strategy == "mean":
                 raise NotImplementedError("Not implemented yet")
             elif strategy == "copy":
-                for policy in self.training_policies:
+                for name, policy in self.training_policies:
                     self.inference_policy.set_weights(policy.get_weights())
                 self.policy_update_counter = 0
             else:
                 raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
 
         """Update metrics for training"""
-        self.metrics.add("iterations_per_episode", 1, "Sum")
-        self.metrics.add("total_epochs", 1, "InfiniteSum")
-        self.metrics.add("total_loss", total_loss, "Mean")
+        self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "summary/training/")
+        self.metrics.add("epochs", 1, ["sum_total"], "summary/training/")
+        self.metrics.add("total", total_loss, ["mean_episode", "mean_total"], "loss")
         return total_loss

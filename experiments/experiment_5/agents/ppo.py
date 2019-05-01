@@ -1,8 +1,3 @@
-from experiments.experiment_5 import defaults
-from experiments.experiment_5.a2c import A2C
-from experiments.experiment_5.agent import Agent
-import tensorflow as tf
-
 # TODO
 # * Add KL-penalized objective (loss)
 # * Clipped surrogate objective
@@ -19,14 +14,16 @@ import tensorflow as tf
 # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
+import tensorflow as tf
+from experiments.experiment_5.agents.a2c import A2C
+from experiments.experiment_5.agents.agent import Agent
+from experiments.experiment_5.agents.configuration import defaults
+
 
 class PPO(A2C):
     DEFAULTS = defaults.PPO
 
-
-    def __init__(self,
-                 epsilon=0.1,
-                 **kwargs):
+    def __init__(self, epsilon=0.1, **kwargs):
         super(PPO, self).__init__(**Agent.arguments())
         self.epsilon = epsilon  # Clipping coefficient
 
@@ -37,6 +34,7 @@ class PPO(A2C):
                 prediction["policy_logits"],
                 data["actions"],
                 # self.discounted_returns(data["rewards"], data["terminals"])
+
                 self.advantage(
                     self.inference_policy,
                     data["obs"],
