@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import gym
 from absl import flags
 import tensorflow as tf
@@ -65,7 +67,7 @@ class Agent:
         self.metrics = Metrics(self)
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
         self.losses = dict()
-        self.operations = dict()
+        self.operations = OrderedDict()
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
 
@@ -168,12 +170,11 @@ class Agent:
 
                 """Pack data container"""
                 kwargs["policy"] = policy
-
                 pred = policy(**kwargs)
 
                 """Run all calculations"""
                 for opname, operation in self.operations.items():
-                    kwargs[opname] = operation(**kwargs)
+                    kwargs[opname] = operation(pred=pred, **kwargs)
 
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.losses.items():

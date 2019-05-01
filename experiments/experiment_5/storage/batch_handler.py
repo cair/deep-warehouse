@@ -17,70 +17,54 @@ class DynamicBatch:
         self.dtype = agent.dtype
 
         self.counter = 0
-        self.data = dict()
+        self.data = dict(
+            # Dict of each type:
+            # reward
+            # obs1
+            # ...etc
+        )
 
         if self.episodic:
-            self.mb_count = 1
+            self.mb = 1
+            self.bsize = 91248128
             if self.mb != 1:
                 logging.log(logging.WARN, "Batch mode is set to 'episodic' while batch_sets is not 1. Ignoring "
                                           "mini_batches config.")
         else:
-            self.mb_count = int((self.bsize * self.mb) / self.bsize)
-
-        self.total_size = self.bsize * self.mb
+            self.total_size = self.bsize * self.mb
 
     def add(self, **kwargs):
 
+        self.counter += 1
         for k, v in kwargs.items():
             try:
                 data_container = self.data[k]
             except KeyError:
-                self.data[k] = []
+                self.data[k] = [[]]
                 data_container = self.data[k]
 
-            # Convert to numpy
-            v = np.squeeze(np.asarray(v))
+            data_container[-1].append(np.squeeze(v))
 
-            #if v.ndim == 0:
-            #    v = np.reshape(v, v.shape + (1, ))
+            """Create new mini-batch container"""
+            if len(data_container[-1]) >= self.bsize or (self.episodic and bool(kwargs["terminal"])):
 
-            data_container.append(np.squeeze(v))
-        self.counter += 1
+                # Add new container
+                # Note: This will add a self.mb + 1 element. At flush the batch collector will ignore this last element
+                # And will act as initialization for the next round.
+                data_container.append([])
 
         if self.episodic:
             try:
                 return bool(kwargs["terminal"])
-
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
 
         return self.counter == self.total_size
 
     def flush(self):
-        """data = dict()
-        for k in list(self.data.keys()):
-            data[k] = np.asarray(
-                np.split(
-                    np.asarray(self.data[k], dtype=self.dtype.name),
-                    self.mb_count,
-                    axis=0
-                ))
-            del self.data[k]
-        return data"""
-
-        # TODO typical optimization point
-        data = [{} for _ in range(self.mb_count)]
-        for k in list(self.data.keys()):
-            for i, elem in enumerate(np.asarray(
-                np.split(
-                    np.asarray(self.data[k], dtype=self.dtype.name),
-                    self.mb_count,
-                    axis=0
-                ))):
-                data[i][k] = elem
-
-            del self.data[k]
+        data = [{k: np.asarray(self.data[k].pop(0)) for k in self.data.keys()} for mb in range(self.mb)]
         return data
+
 
 
 

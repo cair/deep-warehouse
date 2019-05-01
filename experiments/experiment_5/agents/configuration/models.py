@@ -59,8 +59,8 @@ class A2CPolicy(PGPolicy):
         self.h_6 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1, dtype=self.agent.dtype)
 
-    def call(self, inputs):
-        data = super().call(inputs)
+    def call(self, inputs, **kwargs):
+        data = super().call(inputs, **kwargs)
 
         #x = self.shared(inputs)
         #x = self.h_4(x)
@@ -70,7 +70,7 @@ class A2CPolicy(PGPolicy):
         x = self.h_6(x)
         action_value = self.action_value(x)
 
-        data["action_value"] = action_value
+        data["action_value"] = tf.squeeze(action_value)
         return data
 
 

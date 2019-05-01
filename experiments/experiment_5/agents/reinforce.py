@@ -26,7 +26,9 @@ class REINFORCE(Agent):
         self.gamma = gamma
         self.baseline = baseline
 
-        self.add_operation("advantage", self.discounted_returns)
+        self.add_operation("returns", self.discounted_returns)
+        self.add_operation("advantage", lambda returns, **kwargs: returns)
+
         self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will oscillate with training.")
 
         if entropy_coef != 0:
@@ -54,12 +56,6 @@ class REINFORCE(Agent):
 
             self.metrics.add("training_time", time.perf_counter() - s, ["mean_episode"], "summary")
 
-    """
-    # G is commonly refered to as the cumulative discounted rewards
-    """
-
-
-
     def policy_loss(self, pred, action=None, advantage=None, **kwargs):
         logits = pred["logits"]
         #neg_log_p = tf.maximum(1e-6, tf.reduce_sum(-tf.math.log(logits) * action, axis=1))
@@ -73,7 +69,6 @@ class REINFORCE(Agent):
         logits = pred["logits"]
         entropy_loss = tf.losses.categorical_crossentropy(logits, logits, from_logits=True)
         return - tf.reduce_mean(entropy_loss * self.entropy_coef)
-
 
     def discounted_returns(self, reward, terminal, **kwargs):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance

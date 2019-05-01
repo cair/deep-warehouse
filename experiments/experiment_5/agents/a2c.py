@@ -26,49 +26,34 @@ class A2C(REINFORCE):
                                                 "**ev=1**: Perfect prediction  \n  "
                                                 "**ev<0**: Worse than just predicting zero")
 
-        # self.add_calculation("advantage", self.advantage)
-
-        # self.add_loss("policy_loss", self.policy_loss)  # Overrides loss of REINFORCE
+        self.add_operation("advantage", self.advantage)
         self.add_loss("action_value_loss", self.action_value_loss)
 
-    def G(self, data, **kwargs):
-        """Override G of REINFORCE"""
-        super().G(data, **kwargs)
-        discounted_rewards = data["G"]
+    def advantage(self, pred, returns, obs1, policy, **kwargs):
+        action_values = pred["action_value"]
 
-        action_values = data["values"]
-
-        V1 = data["policy"](data["obs1"])["action_value"]
+        V1 = policy(obs1)["action_value"]
         #advantage = discounted_rewards + (self.gamma*V1 - action_values)
+        advantage = returns + (V1*self.gamma) - action_values
+        self.metrics.add("explained-variance", utils.explained_variance(action_values, returns), ["mean_episode"], "loss")
+        return advantage
 
-        advantage = discounted_rewards + (V1*self.gamma) - action_values
-
-        self.metrics.add("explained_variance", utils.explained_variance_2d(action_values, discounted_rewards), "EpisodicMean")
-
-        data["returns"] = discounted_rewards
-        data["G"] = advantage
-
-
-
-    def action_value_loss(self, action_value=None, advantage=None, returns=None, **kwargs):
+    def action_value_loss(self, pred=None, advantage=None, returns=None, **kwargs):
         """
         The action_value loss is the MSE of discounted reward and predicted
         :param returns:
         :param predicted:
         :return:
         """
-        # Must be same shape (squeeze)
-        action_value = tf.squeeze(action_value)  # TODO optimize away
+        action_value = pred["action_value"]
 
         if self.value_loss == "huber":
-            loss = tf.keras.losses.Huber()(returns, action_value)
+
+            loss = tf.losses.Huber()(tf.stop_gradient(returns), action_value)
 
         elif self.value_loss == "mse":
-            loss = tf.keras.losses.mean_squared_error(returns, action_value)
+            loss = tf.losses.mean_squared_error(tf.stop_gradient(returns), action_value)
         else:
             raise NotImplementedError("The loss %s is not implemented for %s." % (self.value_loss, self.name))
-
-        #loss = tf.reduce_mean(tf.square(action_value - G))
-        tf.stop_gradient(returns)
 
         return self.value_coef * loss

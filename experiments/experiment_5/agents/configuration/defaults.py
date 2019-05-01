@@ -18,8 +18,8 @@ REINFORCE = dict(
 
 A2C = dict(
     batch_mode="steps",
-    batch_size=64,
-    mini_batches=1,
+    batch_size=4,
+    mini_batches=4,
     entropy_coef=0.01,
     policies=dict(
         policy=lambda agent: A2CPolicy(

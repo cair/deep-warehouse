@@ -21,7 +21,7 @@ def explained_variance(ypred, y):
 
     """
 
-    assert y.ndim == 2 and ypred.ndim == 2
+    assert y.ndim == 1 and ypred.ndim == 1
 
     """s = time.perf_counter()
     _, vary = tf.nn.moments(y, axes=[0])

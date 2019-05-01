@@ -18,6 +18,7 @@ import tensorflow as tf
 tf.config.gpu.set_per_process_memory_growth(True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # https://github.com/ADGEfficiency/dsr-rl/blob/master/PITCHME.md
+# MY NOTES: https://hastebin.com/usasisifuw
 def main(argv):
     benchmark = False
     episodes = 100000
