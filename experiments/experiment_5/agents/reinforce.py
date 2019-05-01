@@ -16,7 +16,7 @@ class REINFORCE(Agent):
 
     def __init__(self,
                  gamma=0.99,
-                 entropy_coef=0.01,
+                 entropy_coef=0.001,
                  baseline=None,
                  **kwargs):
 
@@ -36,7 +36,8 @@ class REINFORCE(Agent):
         start = time.perf_counter()
         pred = super().predict(inputs)
 
-        action = tf.squeeze(pred["logits"].sample())
+        action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
+
         self.data["action"] = tf.one_hot(action, self.action_space)
 
         self.metrics.add("inference_time", time.perf_counter() - start, ["mean_episode"], "summary")
@@ -48,9 +49,7 @@ class REINFORCE(Agent):
         if ready:
             s = time.perf_counter()
 
-
-            data = self.batch.flush()
-            for batch in data:
+            for batch in self.batch.flush():
                 self.train(**batch)
 
             self.metrics.add("training_time", time.perf_counter() - s, ["mean_episode"], "summary")
@@ -66,14 +65,14 @@ class REINFORCE(Agent):
         #neg_log_p = tf.maximum(1e-6, tf.reduce_sum(-tf.math.log(logits) * action, axis=1))
         #return tf.reduce_mean(neg_log_p * advantage)
 
-        neg_log_policy = -logits.log_prob(tf.argmax(action, axis=1))
+        neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(action, logits=logits)
 
-        return tf.reduce_mean(advantage * neg_log_policy)
+        return tf.reduce_mean(advantage * neg_log_prob)
 
     def entropy_loss(self, pred, obs=None, **kwargs):
         logits = pred["logits"]
-        entropy_loss = logits.entropy()
-        return tf.reduce_mean(-entropy_loss * self.entropy_coef)
+        entropy_loss = tf.losses.categorical_crossentropy(logits, logits, from_logits=True)
+        return - tf.reduce_mean(entropy_loss * self.entropy_coef)
 
 
     def discounted_returns(self, reward, terminal, **kwargs):

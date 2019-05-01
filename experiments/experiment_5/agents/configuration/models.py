@@ -29,9 +29,7 @@ class PGPolicy(Policy):
         self.h_1 = tf.keras.layers.Dense(64, activation='relu', dtype=self.agent.dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
         self.h_2 = tf.keras.layers.Dense(64, activation='relu', dtype=self.agent.dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
         self.h_3 = tf.keras.layers.Dense(64, activation='relu', dtype=self.agent.dtype, kernel_initializer=tf.keras.initializers.glorot_uniform())
-
-        # Probabilties of each action
-        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="linear", name='policy_logits', dtype=self.agent.dtype)
+        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="linear", name='policy', dtype=self.agent.dtype)
 
     def shared(self, x):
         x = self.h_1(x)
@@ -43,7 +41,7 @@ class PGPolicy(Policy):
         x = self.shared(inputs)
         x = self.logits(x)
         return dict(
-            logits=tfp.distributions.Categorical(logits=x)
+            logits=x
         )
 
 
