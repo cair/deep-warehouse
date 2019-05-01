@@ -74,15 +74,16 @@ class GenericMetric:
 
     def __init__(self, name, dtype, types, tags):
         self.old_data = []
-        self.old_data_summed = deque(maxlen=100)
+        self.old_data_summed = []
         self.data = []
         self.name = name
         self.tags = tags
         self.types = types
 
         self.fns = {
-            "mean_episode": lambda: np.mean(self.data),
-            "sum_mean_frequent": lambda: np.mean(self.old_data_summed),
+            "mean_episode": lambda: np.mean(self.data, dtype=np.float32),
+            "sum_mean_frequent": lambda: np.mean(self.old_data_summed[-100:]),
+            "sum_mean_total": lambda: np.mean(self.old_data_summed),
             "mean_total": lambda: np.mean(self.old_data + self.data),
             "sum_episode": lambda: np.sum(self.data),
             "sum_total": lambda: np.sum(self.old_data + self.data),
@@ -96,6 +97,7 @@ class GenericMetric:
         # Average (All Episodes)
 
     def __call__(self, a):
+
         self.data.append(a)
 
     def reset_states(self):
@@ -120,15 +122,10 @@ class Metrics:
 
     def __init__(self, agent):
         self.agent = agent
-        self.episode = 1
+        self.episode = 0
+        self.epoch = 1
         self.avg_len = 100
         self.metrics = {}
-        self.metric_types = {
-            "mean_episode": Mean,
-            "mean_total": MeanInfinite,
-            "sum_episode": Sum,
-            "sum_total": SumInfinite
-        }
 
         self.fns_explaination = {
             "mean_episode": "After an episode is completed, this take the mean over all elements collected",
@@ -158,8 +155,11 @@ class Metrics:
             data = metric.result()
             for k, r in data.items():
                 k = metric.fullname(k)
+
                 res_str += "%s: %.5f | " % (k.capitalize(), float(r))
-                self.summary(k, r)
+                if not np.isnan(r):
+                    self.summary(k, r)
+
         logging.log(logging.DEBUG, res_str)
         self.reset()
         self.episode += 1

@@ -39,27 +39,6 @@ def main(argv):
                 terminal=terminal
             )
 
-        """try:
-            #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-            env = gym.make(env_name)
-
-
-
-            for e in range(episodes):
-
-                steps = 0
-                terminal = False
-                obs = env.reset()
-
-                while not terminal:
-                    action = agent.get_action(obs[None, :])
-                    obs, reward, terminal, info = env.step(action)
-                    reward = 0 if terminal else reward
-                    agent.observe(obs, reward, terminal)
-                    steps += 1
-        except Exception as e:
-            print(e)
-            raise e"""
 
     env = gym.make(env_name)
 
@@ -76,7 +55,6 @@ def main(argv):
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,
-            inference_only=False
         ), episodes))
     else:
         agents = [

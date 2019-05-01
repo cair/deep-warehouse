@@ -26,6 +26,7 @@ class A2C(REINFORCE):
                                                 "**ev=1**: Perfect prediction  \n  "
                                                 "**ev<0**: Worse than just predicting zero")
 
+
         self.add_operation("advantage", self.advantage)
         self.add_loss("action_value_loss", self.action_value_loss)
 
@@ -33,9 +34,10 @@ class A2C(REINFORCE):
         action_values = pred["action_value"]
 
         V1 = policy(obs1)["action_value"]
-        #advantage = discounted_rewards + (self.gamma*V1 - action_values)
+
         advantage = returns + (V1*self.gamma) - action_values
-        self.metrics.add("explained-variance", utils.explained_variance(action_values, returns), ["mean_episode"], "loss")
+        self.metrics.add("explained-variance", utils.explained_variance(action_values, returns), ["sum_mean_frequent", "mean_total"], "loss")
+
         return advantage
 
     def action_value_loss(self, pred=None, advantage=None, returns=None, **kwargs):

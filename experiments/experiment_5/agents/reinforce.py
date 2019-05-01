@@ -13,7 +13,6 @@ logging.set_verbosity(logging.DEBUG)
 class REINFORCE(Agent):
     DEFAULTS = defaults.REINFORCE
 
-
     def __init__(self,
                  gamma=0.99,
                  entropy_coef=0.001,
@@ -42,19 +41,20 @@ class REINFORCE(Agent):
 
         self.data["action"] = tf.one_hot(action, self.action_space)
 
-        self.metrics.add("inference_time", time.perf_counter() - start, ["mean_episode"], "summary")
+        self.metrics.add("inference_time", time.perf_counter() - start, ["mean_total"], "time")
         return action.numpy()
 
     def observe(self, **kwargs):
         ready = super().observe(**kwargs)
 
         if ready:
+
             s = time.perf_counter()
 
             for batch in self.batch.flush():
                 self.train(**batch)
 
-            self.metrics.add("training_time", time.perf_counter() - s, ["mean_episode"], "summary")
+            self.metrics.add("training_time", time.perf_counter() - s, ["mean_total"], "time")
 
     def policy_loss(self, pred, action=None, advantage=None, **kwargs):
         logits = pred["logits"]
@@ -62,13 +62,14 @@ class REINFORCE(Agent):
         #return tf.reduce_mean(neg_log_p * advantage)
 
         neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(action, logits=logits)
+        loss = tf.reduce_mean(advantage * neg_log_prob)
 
-        return tf.reduce_mean(advantage * neg_log_prob)
+        return loss
 
     def entropy_loss(self, pred, obs=None, **kwargs):
         logits = pred["logits"]
-        entropy_loss = tf.losses.categorical_crossentropy(logits, logits, from_logits=True)
-        return - tf.reduce_mean(entropy_loss * self.entropy_coef)
+        entropy_loss = -tf.reduce_mean(tf.losses.categorical_crossentropy(logits, logits, from_logits=True) * self.entropy_coef)
+        return entropy_loss
 
     def discounted_returns(self, reward, terminal, **kwargs):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance

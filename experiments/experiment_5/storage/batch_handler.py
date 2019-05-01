@@ -63,6 +63,7 @@ class DynamicBatch:
 
     def flush(self):
         data = [{k: np.asarray(self.data[k].pop(0)) for k in self.data.keys()} for mb in range(self.mb)]
+        self.counter = 0
         return data
 
 
@@ -155,7 +156,6 @@ class VectorBatchHandler:
         return np.asarray(np.vsplit(np.asarray(self._terminals, dtype=self.dtype.name), self.minibatch_splits))
 
     def values(self):
-        print(np.asarray(self._values, dtype=self.dtype.name).shape, "lal")
         return np.asarray(np.vsplit(np.asarray(self._values, dtype=self.dtype.name), self.minibatch_splits))
 
     def get(self):

@@ -62,10 +62,8 @@ class A2CPolicy(PGPolicy):
     def call(self, inputs, **kwargs):
         data = super().call(inputs, **kwargs)
 
-        #x = self.shared(inputs)
-        #x = self.h_4(x)
-
-        x = self.h_4(inputs)
+        x = self.shared(inputs)
+        x = self.h_4(x)
         x = self.h_5(x)
         x = self.h_6(x)
         action_value = self.action_value(x)

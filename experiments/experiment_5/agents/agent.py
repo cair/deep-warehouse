@@ -5,6 +5,7 @@ from absl import flags
 import tensorflow as tf
 import datetime
 import os
+import numpy as np
 
 from experiments.experiment_5 import utils
 from experiments.experiment_5.storage.batch_handler import DynamicBatch
@@ -96,6 +97,8 @@ class Agent:
         self.policy_update_frequency = self.policy_update["interval"]
         self.policy_update_enabled = len(self.policies) > 1
 
+        self.epochs = 0
+
         self.batch = DynamicBatch(
             agent=self,
             obs_space=obs_space,
@@ -146,8 +149,8 @@ class Agent:
         self.data.update(**kwargs)
 
         """Metrics update."""
-        self.metrics.add("steps", 1, ["sum_episode"], "summary")
-        self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent"], "summary")
+        self.metrics.add("steps", 1, ["sum_episode", "sum_mean_total"], "summary")
+        self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent", "sum_mean_total"], "summary")
 
         if kwargs["terminal"]:
             self.metrics.summarize()
@@ -162,6 +165,7 @@ class Agent:
 
         total_loss = 0
         self.policy_update_counter += 1
+        self.epochs += 1
 
         """Policy training procedure"""
         for name, policy in self.training_policies:
@@ -181,7 +185,7 @@ class Agent:
                     loss = loss_fn(pred=pred, **kwargs)
 
                     """Add metric for loss"""
-                    self.metrics.add(loss_name + "/" + name, loss, ["mean_episode"], "loss")
+                    self.metrics.add(loss_name + "/" + name, loss, ["mean_total"], "loss")
 
                     """Add to total loss"""
                     total_loss += loss
@@ -192,12 +196,14 @@ class Agent:
             if self.max_grad_norm is not None:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.max_grad_norm)
 
+
+
             """Backprop"""
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
             """Record learning rate"""
 
-            self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_episode"], "hyper-parameter")
+            self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
 
         """Policy update strategy (If applicable)."""
         if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:
@@ -213,7 +219,7 @@ class Agent:
                 raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
 
         """Update metrics for training"""
-        self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "summary/training/")
-        self.metrics.add("epochs", 1, ["sum_total"], "summary/training/")
-        self.metrics.add("total", total_loss, ["mean_episode", "mean_total"], "loss")
+        self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "time/training")
+        self.metrics.add("epochs", 1, ["sum_total"], "time/training")
+        self.metrics.add("total", total_loss, ["sum_mean_frequent", "mean_total"], "loss")
         return total_loss
