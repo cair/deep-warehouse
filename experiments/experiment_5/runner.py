@@ -51,7 +51,7 @@ def main(argv):
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((REINFORCE, dict(
+        submit((A2C, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,

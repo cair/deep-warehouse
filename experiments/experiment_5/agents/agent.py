@@ -31,7 +31,7 @@ class Agent:
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
                  batch_size: int = 32,
-                 max_grad_norm=None,
+                 grad_clipping=None,
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
@@ -59,7 +59,7 @@ class Agent:
         self.batch_size = batch_size
         self.mini_batches = mini_batches
         self.dtype = dtype
-        self.max_grad_norm = max_grad_norm
+        self.grad_clipping = grad_clipping
         self.inference_only = inference_only
 
         self._tensorboard_enabled = tensorboard_enabled
@@ -97,8 +97,6 @@ class Agent:
         self.policy_update_counter = 0
         self.policy_update_frequency = self.policy_update["interval"]
         self.policy_update_enabled = len(self.policies) > 1
-
-        self.epochs = 0
 
         self.batch = DynamicBatch(
             agent=self,
@@ -166,7 +164,6 @@ class Agent:
 
         total_loss = 0
         self.policy_update_counter += 1
-        self.epochs += 1
 
         """Policy training procedure"""
         for name, policy in self.training_policies:
@@ -179,11 +176,11 @@ class Agent:
 
                 """Run all calculations"""
                 for opname, operation in self.operations.items():
-                    kwargs[opname] = operation(pred=pred, **kwargs)
+                    kwargs[opname] = operation(**pred, **kwargs)
 
                 """Run all loss functions"""
                 for loss_name, loss_fn in self.losses.items():
-                    loss = loss_fn(pred=pred, **kwargs)
+                    loss = loss_fn(**pred, **kwargs)
 
                     """Add metric for loss"""
                     self.metrics.add(loss_name + "/" + name, loss, ["mean_total"], "loss")
@@ -194,10 +191,11 @@ class Agent:
             """Calculate gradients"""
             grads = tape.gradient(total_loss, policy.trainable_variables)
 
-            if self.max_grad_norm is not None:
-                grads, _grad_norm = tf.clip_by_global_norm(grads, self.max_grad_norm)
+            """Gradient Clipping"""
+            if self.grad_clipping is not None:
+                grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
-
+            """Diagnostics"""
             self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
             self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"], "gradients")
 
@@ -205,7 +203,6 @@ class Agent:
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
             """Record learning rate"""
-
             self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
 
         """Policy update strategy (If applicable)."""

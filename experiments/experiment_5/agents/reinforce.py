@@ -56,20 +56,20 @@ class REINFORCE(Agent):
 
             self.metrics.add("training_time", time.perf_counter() - s, ["mean_total"], "time")
 
-    def policy_loss(self, pred, action=None, advantage=None, **kwargs):
-        logits = pred["logits"]
-        #neg_log_p = tf.maximum(1e-6, tf.reduce_sum(-tf.math.log(logits) * action, axis=1))
-        #return tf.reduce_mean(neg_log_p * advantage)
+    def policy_loss(self, logits, action, advantage, **kwargs):
+        assert logits.shape == action.shape
 
-        neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(action, logits=logits)
-        loss = tf.reduce_mean(advantage * neg_log_prob)
+        log_prob = tf.math.log_softmax(logits, axis=1)
+        log_prob = advantage * tf.reduce_sum(log_prob * action, axis=1)
 
-        return loss
+        return -tf.reduce_mean(log_prob)
 
-    def entropy_loss(self, pred, obs=None, **kwargs):
-        logits = pred["logits"]
-        entropy_loss = -tf.reduce_mean(tf.losses.categorical_crossentropy(logits, logits, from_logits=True) * self.entropy_coef)
-        return entropy_loss
+    def entropy_loss(self, logits, **kwargs):
+        #entropy_loss = -tf.reduce_mean(tf.losses.categorical_crossentropy(logits, logits, from_logits=True) * self.entropy_coef)
+
+        log_prob = tf.math.softmax(logits)
+        entropy = self.entropy_coef * tf.reduce_mean(tf.reduce_sum(log_prob * tf.math.log(log_prob), axis=1))
+        return -entropy
 
     def discounted_returns(self, reward, terminal, **kwargs):
         # TODO - Checkout https://github.com/openai/baselines/blob/master/baselines/a2c/utils.py and compare performance
