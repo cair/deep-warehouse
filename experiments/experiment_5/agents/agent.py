@@ -3,6 +3,7 @@ from collections import OrderedDict
 import gym
 from absl import flags
 import tensorflow as tf
+import tensorflow_probability as tfp
 import datetime
 import os
 import numpy as np
@@ -197,6 +198,8 @@ class Agent:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.max_grad_norm)
 
 
+            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
+            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"], "gradients")
 
             """Backprop"""
             policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))

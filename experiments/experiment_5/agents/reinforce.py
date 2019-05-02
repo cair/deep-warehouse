@@ -92,7 +92,8 @@ class REINFORCE(Agent):
         else:
             baseline = 0
 
-        return discounted_rewards - baseline
+        returns = discounted_rewards - baseline
+        return returns
 
     def generalized_advantage_estimation(self, values, next_value, rewards, terminals, gamma=0.99, tau=0.95):
         # TODO not really working ...

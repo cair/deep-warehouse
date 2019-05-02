@@ -55,6 +55,7 @@ def main(argv):
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,
+            baseline="reward_mean"
         ), episodes))
     else:
         agents = [
