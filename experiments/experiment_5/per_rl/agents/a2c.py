@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from experiments.experiment_5 import utils
-from experiments.experiment_5.agents.agent import Agent
-from experiments.experiment_5.agents.configuration import defaults
-from experiments.experiment_5.agents.reinforce import REINFORCE
+from experiments.experiment_5.per_rl import utils
+from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.configuration import defaults
+from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 
 
 class A2C(REINFORCE):

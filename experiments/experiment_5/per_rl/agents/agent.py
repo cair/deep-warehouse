@@ -1,16 +1,14 @@
 from collections import OrderedDict
-
 import gym
 from absl import flags
 import tensorflow as tf
-import tensorflow_probability as tfp
 import datetime
 import os
 import numpy as np
 
-from experiments.experiment_5 import utils
-from experiments.experiment_5.storage.batch_handler import DynamicBatch
-from experiments.experiment_5.utils.metrics import Metrics
+from experiments.experiment_5.per_rl import utils
+from experiments.experiment_5.per_rl.storage.batch_handler import DynamicBatch
+from experiments.experiment_5.per_rl.utils.metrics import Metrics
 
 FLAGS = flags.FLAGS
 

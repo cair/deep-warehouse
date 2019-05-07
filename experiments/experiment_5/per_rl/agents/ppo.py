@@ -15,9 +15,9 @@
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
 import tensorflow as tf
-from experiments.experiment_5.agents.a2c import A2C
-from experiments.experiment_5.agents.agent import Agent
-from experiments.experiment_5.agents.configuration import defaults
+from experiments.experiment_5.per_rl.agents.a2c import A2C
+from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.configuration import defaults
 
 
 class PPO(A2C):

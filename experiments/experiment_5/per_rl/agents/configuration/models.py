@@ -1,6 +1,5 @@
 import tensorflow as tf
-import tensorflow_probability as tfp
-from experiments.experiment_5 import utils
+from experiments.experiment_5.per_rl import utils
 
 class Policy(tf.keras.models.Model):
 

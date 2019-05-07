@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 
-from experiments.experiment_5.agents.configuration.models import PGPolicy, A2CPolicy, PPOPolicy
+from experiments.experiment_5.per_rl.agents.configuration.models import PGPolicy, A2CPolicy, PPOPolicy
 
 REINFORCE = dict(
     batch_mode="episodic",

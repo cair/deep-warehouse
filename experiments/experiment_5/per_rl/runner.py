@@ -2,9 +2,9 @@ from absl import flags, app
 
 from experiments.experiment_5.environment import Environment
 
-from experiments.experiment_5.agents.a2c import A2C
-from experiments.experiment_5.agents.ppo import PPO
-from experiments.experiment_5.agents.reinforce import REINFORCE
+from experiments.experiment_5.per_rl.agents.a2c import A2C
+from experiments.experiment_5.per_rl.agents.ppo import PPO
+from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
