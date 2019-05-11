@@ -3,8 +3,8 @@ import numpy as np
 from absl import flags, logging
 import time
 
-from experiments.experiment_5.agents.agent import Agent
-from experiments.experiment_5.agents.configuration import defaults
+from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.configuration import defaults
 
 FLAGS = flags
 logging.set_verbosity(logging.DEBUG)

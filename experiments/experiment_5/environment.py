@@ -38,42 +38,34 @@ class Environment:
         #self.state = self.next_state
         return self.state, self.reward, self.terminal
 
-"""
-      #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-            env = gym.make(env_name)
 
-            AGENT, spec, episodes = args
-            agent = AGENT(**spec)
+class Agent:
 
-            for e in range(episodes):
+    def __init__(self, algorithm, algorithm_config, environment, num_agents, num_environments):
+        self.algorithm = algorithm
+        self.algorithm_config = algorithm_config
+        self.environment = environment
+        self.num_agents = num_agents
+        self.num_environments = num_environments
 
-                steps = 0
-                terminal = False
-                obs = env.reset()
+        self.remotes = [self.createActor() for _ in range(self.num_environments + 1)]
+        self.local = self.remotes.pop()
 
-                while not terminal:
-                    action = agent.get_action(obs[None, :])
-                    obs, reward, terminal, info = env.step(action)
-                    reward = 0 if terminal else reward
-                    agent.observe(obs, reward, terminal)
-                    steps += 1
-        except Exception as e:
-            print(e)
-            raise e
-"""
+    def createActor(self):
+        return EnvActor.remote(self.environment, self.algorithm, self.algorithm_config)
 
-
-
+    def single_train(self):
+        for actor in self.remotes:
+            batch = actor.single_train.remote()
+            print(ray.get(batch))
+        self.local.single_train.remote()
 
 @ray.remote
 class EnvActor:
 
     def __init__(self, env, agent, agent_config):
         """1. If env is a string, use as gym environment. If its a class, use "as is"."""
-        if isinstance(env, str):
-            self.env = gym.make(env)
-        else:
-            self.env = env
+        self.env = Environment(env)
 
         """Agent Class."""
         self._agent_class = agent
@@ -86,35 +78,18 @@ class EnvActor:
 
         self.episodes = 1000
 
-        self.run()
+    def single_train(self):
+        self.run_episode()
+        return self.agent.batch.data
 
-    def run(self):
-
-        for e in range(self.episodes):
-
-            steps = 0
-            terminal = False
-            obs = self.env.reset()
-
-            while not terminal:
-                action = self.agent.get_action(obs[None, :])
-                obs, reward, terminal, info = self.env.step(action)
-                reward = 0 if terminal else reward
-                self.agent.observe(obs[None, :], reward, terminal)
-                steps += 1
-
-
-class Runner:
-
-    def __init__(self):
-        self.loop = asyncio.get_event_loop()
-        self.actor_ids = []
-
-    def setup(self, env, agent, agent_config, num_actors=1):
-
-        for i in range(num_actors):
-            actor_id = EnvActor.remote(env, agent, agent_config)
-            self.actor_ids.append(actor_id)
-
-        self.loop.run_forever()
+    def run_episode(self):
+        terminal = False
+        while not terminal:
+            action = self.agent.predict(self.env.state)
+            state1, reward, terminal = self.env.step(action)
+            self.agent.observe(
+                obs1=state1,
+                reward=reward,
+                terminal=terminal
+            )
 

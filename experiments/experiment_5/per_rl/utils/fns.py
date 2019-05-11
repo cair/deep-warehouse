@@ -72,14 +72,14 @@ def arguments():
         DEFAULTS = {}
 
 
-    self = frame.f_back.f_locals["self"]
+    """self = frame.f_back.f_locals["self"]
     named_args = {k: v for k, v in frame.f_back.f_locals.copy().items() if k != "kwargs"}
 
     if not hasattr(self, "_hyperparameters"):
         setattr(self, "_hyperparameters", dict())
 
     _hyperparameters = getattr(self, "_hyperparameters")
-    _hyperparameters.update(named_args)
+    _hyperparameters.update(named_args)"""
 
     del frame
 

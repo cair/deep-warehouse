@@ -15,9 +15,9 @@
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
 import tensorflow as tf
-from experiments.experiment_5.agents.a2c import A2C
-from experiments.experiment_5.agents.agent import Agent
-from experiments.experiment_5.agents.configuration import defaults
+from experiments.experiment_5.per_rl.agents.a2c import A2C
+from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.configuration import defaults
 
 
 class PPO(A2C):
@@ -27,24 +27,6 @@ class PPO(A2C):
         super(PPO, self).__init__(**Agent.arguments())
         self.epsilon = epsilon  # Clipping coefficient
 
-        self.add_loss(
-            "clipped_surrogate_loss",
-            lambda prediction, data: self.clipped_surrogate_loss(
-                self.inference_policy(data["obs"])["policy_logits"],
-                prediction["policy_logits"],
-                data["actions"],
-                # self.discounted_returns(data["rewards"], data["terminals"])
-
-                self.advantage(
-                    self.inference_policy,
-                    data["obs"],
-                    data["obs1"],
-                    data["rewards"],
-                    data["terminals"]
-                )
-
-            )
-        )
 
         """Remove standard REINFORCE (pg) loss."""
         self.remove_loss("policy_loss")

@@ -1,16 +1,14 @@
 from collections import OrderedDict
-
 import gym
 from absl import flags
 import tensorflow as tf
-import tensorflow_probability as tfp
 import datetime
 import os
 import numpy as np
 
-from experiments.experiment_5 import utils
-from experiments.experiment_5.storage.batch_handler import DynamicBatch
-from experiments.experiment_5.utils.metrics import Metrics
+from experiments.experiment_5.per_rl import utils
+from experiments.experiment_5.per_rl.storage.batch_handler import DynamicBatch
+from experiments.experiment_5.per_rl.utils.metrics import Metrics
 
 FLAGS = flags.FLAGS
 
@@ -37,7 +35,7 @@ class Agent:
                  tensorboard_path="./tb/",
                  name_prefix=None,
                  inference_only=False):
-        args = utils.get_defaults(self, Agent.arguments())
+        hyper_parameters = utils.get_defaults(self, Agent.arguments())
 
         self.name = self.__class__.__name__
 
@@ -71,7 +69,7 @@ class Agent:
         self.losses = dict()
         self.operations = OrderedDict()
 
-        self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self._hyperparameters)))
+        self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(hyper_parameters)))
 
         self.policies = {
             k: v(self) for k, v in policies.items()
