@@ -86,7 +86,7 @@ class Environment:
         """Reset environment."""
         self.reset()
 
-    def get_agent(self, idx):
+    def get_agent(self, idx) -> Agent:
         return self.agents[idx]
 
     def get_seconds(self):

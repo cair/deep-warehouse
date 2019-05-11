@@ -27,24 +27,6 @@ class PPO(A2C):
         super(PPO, self).__init__(**Agent.arguments())
         self.epsilon = epsilon  # Clipping coefficient
 
-        self.add_loss(
-            "clipped_surrogate_loss",
-            lambda prediction, data: self.clipped_surrogate_loss(
-                self.inference_policy(data["obs"])["policy_logits"],
-                prediction["policy_logits"],
-                data["actions"],
-                # self.discounted_returns(data["rewards"], data["terminals"])
-
-                self.advantage(
-                    self.inference_policy,
-                    data["obs"],
-                    data["obs1"],
-                    data["rewards"],
-                    data["terminals"]
-                )
-
-            )
-        )
 
         """Remove standard REINFORCE (pg) loss."""
         self.remove_loss("policy_loss")

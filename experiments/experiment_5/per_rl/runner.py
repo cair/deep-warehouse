@@ -10,6 +10,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
 
 import gym
+import gym_deep_logistics.gym_deep_logistics
 import os
 
 import pathos.multiprocessing as mp
@@ -23,6 +24,7 @@ def main(argv):
     benchmark = False
     episodes = 100000
     env_name = "CartPole-v0"
+    #env_name = "deep-logistics-normal-v0"
 
     def submit(args):
         AGENT, spec, episodes = args
@@ -33,6 +35,7 @@ def main(argv):
         while env.episode < episodes:
             action = agent.predict(env.state)
             state1, reward, terminal = env.step(action)
+
             agent.observe(
                 obs1=state1,
                 reward=reward,
@@ -41,6 +44,8 @@ def main(argv):
 
 
     env = gym.make(env_name)
+
+    print(env.observation_space, env.action_space.n)
 
     if not benchmark:
         """submit((REINFORCE, dict(
@@ -51,7 +56,7 @@ def main(argv):
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((A2C, dict(
+        submit((PPO, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,

@@ -6,7 +6,8 @@ from experiments.experiment_5.per_rl.agents.a2c import A2C
 if __name__ == "__main__":
     ray.init()
 
-    env_name = "CartPole-v0"
+    #env_name = "CartPole-v0"
+    env_name = "deep-logistics-normal-v0"
     env = gym.make(env_name)
 
     agent = Agent(
