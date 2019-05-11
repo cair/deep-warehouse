@@ -1,5 +1,9 @@
+import time
+
 import ray
 import gym
+
+from gym_deep_logistics import gym_deep_logistics
 from experiments.experiment_5.environment import Agent
 from experiments.experiment_5.per_rl.agents.a2c import A2C
 
@@ -20,7 +24,11 @@ if __name__ == "__main__":
         ),
         environment=env_name,
         num_agents=1,
-        num_environments=5,
+        num_environments=1,
+        sample_delay=30
     )
 
-    agent.single_train()
+    #agent.single_train()
+
+    while True:
+        agent.train()

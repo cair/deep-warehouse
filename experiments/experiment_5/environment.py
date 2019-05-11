@@ -1,9 +1,11 @@
 import time
-import ray
-import asyncio
+
 import gym
-import numpy as np
+from gym_deep_logistics import gym_deep_logistics
+
+import ray
 import sys
+
 class Environment:
 
     def __init__(self, env, episodes=sys.maxsize):
@@ -38,27 +40,60 @@ class Environment:
         #self.state = self.next_state
         return self.state, self.reward, self.terminal
 
+    def reset(self):
+        return self.env.reset()
+
 
 class Agent:
 
-    def __init__(self, algorithm, algorithm_config, environment, num_agents, num_environments):
+    def __init__(self, algorithm, algorithm_config, environment, num_agents, num_environments, sample_delay):
         self.algorithm = algorithm
         self.algorithm_config = algorithm_config
         self.environment = environment
         self.num_agents = num_agents
         self.num_environments = num_environments
+        self.sample_delay = sample_delay
+        self.task_queue_size = 5
 
-        self.remotes = [self.createActor() for _ in range(self.num_environments + 1)]
+        self.total_steps = 0
+
+        self.remotes = [dict(
+            actor=self.createActor(),
+            tasks=[],
+            accumulated_steps=0
+        ) for _ in range(self.num_environments + 1)]
         self.local = self.remotes.pop()
 
     def createActor(self):
         return EnvActor.remote(self.environment, self.algorithm, self.algorithm_config)
 
-    def single_train(self):
-        for actor in self.remotes:
-            batch = actor.single_train.remote()
-            print(ray.get(batch))
-        self.local.single_train.remote()
+    def train(self):
+
+        for remote in self.remotes:
+            actor = remote["actor"]
+            tasks = remote["tasks"]
+
+            # Create new tasks if there is few in queue.
+            if len(tasks) < self.task_queue_size:
+                n_new = self.task_queue_size - len(tasks)
+                tasks.extend([actor.train.remote() for _ in range(n_new)])
+
+            completed_ids, _ = ray.wait(tasks, self.task_queue_size, timeout=.01)
+            for completed_id in completed_ids:
+                episode_steps = ray.get(completed_id)  # the completed task should return number of steps performed
+                # during that episode.
+
+                self.total_steps += episode_steps
+                remote["accumulated_steps"] += episode_steps
+
+                tasks.remove(completed_id)
+            #print("Completed: ", str(len(completed_ids)), "| Incomplete: ", str(len(_)))
+
+
+        local_actor = self.local["actor"]
+
+        time.sleep(.5)
+
 
 @ray.remote
 class EnvActor:
@@ -78,11 +113,18 @@ class EnvActor:
 
         self.episodes = 1000
 
-    def single_train(self):
-        self.run_episode()
-        return self.agent.batch.data
+    def get_weights(self):
+        pass
+
+    def set_weights(self):
+        pass
+
+    def train(self):
+        return self.run_episode()
 
     def run_episode(self):
+        steps = 0
+        self.env.reset()
         terminal = False
         while not terminal:
             action = self.agent.predict(self.env.state)
@@ -92,4 +134,6 @@ class EnvActor:
                 reward=reward,
                 terminal=terminal
             )
+            steps += 1
+        return steps
 

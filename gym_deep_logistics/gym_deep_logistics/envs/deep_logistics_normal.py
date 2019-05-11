@@ -1,5 +1,4 @@
 import gym
-from gym.spaces import Box
 
 from deep_logistics.environment import Environment
 from deep_logistics.scheduler import OnDemandScheduler
@@ -36,22 +35,22 @@ class DeepLogisticsNormal(gym.Env):
         self.action_space = self.env.action_space
         self.observation_space = self.sgen.generate(self.agent).shape
 
-    def _step(self, action):
+    def step(self, action):
 
         self.agent.do_action(action)
 
         #for _ in range(self.frame_skip):  # TODO will fuck up reward
         self.env.update()
+        self.env.render()
 
         state1 = self.sgen.generate(self.agent)
         reward, terminal = Reward0(self.agent)
 
-        self.env.render()
         return state1, reward, terminal, None
 
-    def _reset(self):
+    def reset(self):
         self.env.reset()
         return self.sgen.generate(self.agent)
 
-    def _render(self, mode='human', close=False):
+    def render(self, mode='human', close=False):
         return self.sgen.generate(self.agent)

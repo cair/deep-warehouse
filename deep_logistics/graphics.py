@@ -1,6 +1,6 @@
 import pygame
 from pygame import Surface
-
+import numpy as np
 from deep_logistics import cell_types
 
 
@@ -41,6 +41,7 @@ class PygameGraphics:
 
         self._init_canvas()
 
+
     def bgr2rgb(self, bgr):
         return bgr[2], bgr[1], bgr[0]
 
@@ -58,8 +59,9 @@ class PygameGraphics:
                 elif cell.type == cell_types.OrderDelivery:
                     self.draw_sprite(self.SPRITE_DELIVERY_POINT, x=x, y=y, setup=True)
 
-        if self.has_window:
-            pygame.display.update()
+
+        #if self.has_window:
+        #    pygame.display.flip()
 
     def draw_sprite(self, sprite, x, y, setup=False):
         i = x * self.game_height + y
@@ -106,10 +108,8 @@ class PygameGraphics:
         self.changes_cells.clear()
 
     def reset(self):
-        pass
-        #if self.has_window:
-        #    for change in self.changes:
-        #        pygame.display.update(change)
+        if self.has_window:
+            pygame.display.flip()
 
     def draw_agent(self, agent):
         pass
