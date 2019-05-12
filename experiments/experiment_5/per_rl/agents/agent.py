@@ -1,3 +1,4 @@
+import time
 from collections import OrderedDict
 import gym
 from absl import flags
@@ -26,9 +27,11 @@ class Agent:
                      interval=5,  # Update every 5 training epochs,
                      strategy="copy",  # "copy, mean"
                  ),
+                 batch_shuffle=False,
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
                  batch_size: int = 32,
+                 epochs: int = 1,
                  grad_clipping=None,
                  dtype=tf.float32,
                  tensorboard_enabled=False,
@@ -55,10 +58,12 @@ class Agent:
         self.policies = policies
         self.batch_mode = batch_mode
         self.batch_size = batch_size
+        self.batch_shuffle = batch_shuffle
         self.mini_batches = mini_batches
         self.dtype = dtype
         self.grad_clipping = grad_clipping
         self.inference_only = inference_only
+        self.epochs = epochs
 
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
@@ -132,7 +137,10 @@ class Agent:
             inputs = inputs[None, :]
         self.data["inputs"] = inputs
 
-        return self.inference_policy(inputs)
+        pred = self.inference_policy(inputs)
+        self.data.update(pred)
+
+        return pred
 
     def observe(self, **kwargs):
         """
@@ -152,56 +160,56 @@ class Agent:
         if kwargs["terminal"]:
             self.metrics.summarize()
 
-        return self.batch.add(
+        ready = self.batch.add(
             **self.data
         )
 
-    def train(self, **kwargs):
-        if self.inference_only:
-            return 0
+        if ready:  # or not self.inference_only:
+            train_start = time.perf_counter()
+            losses = self.train()
 
+            """Update metrics for training"""
+            self.metrics.add("total", np.mean(losses), ["sum_mean_frequent", "mean_total"], "loss")
+            self.metrics.add("training_time", time.perf_counter() - train_start, ["mean_total"], "time")
+            self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "time/training")
+
+    def _backprop(self, name, policy, **kwargs):
         total_loss = 0
-        self.policy_update_counter += 1
+        losses = []
 
-        """Policy training procedure"""
-        for name, policy in self.training_policies:
+        """Run all loss functions"""
+        with tf.GradientTape() as tape:
 
-            with tf.GradientTape() as tape:
+            pred = policy(**kwargs)
+            kwargs.update(pred)
 
-                """Pack data container"""
-                kwargs["policy"] = policy
-                pred = policy(**kwargs)
+            for loss_name, loss_fn in self.losses.items():
+                loss = loss_fn(**kwargs)
 
-                """Run all calculations"""
-                for opname, operation in self.operations.items():
-                    kwargs[opname] = operation(**pred, **kwargs)
+                """Add metric for loss"""
+                self.metrics.add(loss_name + "/" + name, loss, ["mean_total"], "loss")
 
-                """Run all loss functions"""
-                for loss_name, loss_fn in self.losses.items():
-                    loss = loss_fn(**pred, **kwargs)
+                """Add to total loss"""
+                total_loss += loss
+                losses.append(loss)
 
-                    """Add metric for loss"""
-                    self.metrics.add(loss_name + "/" + name, loss, ["mean_total"], "loss")
+        """Calculate gradients"""
+        grads = tape.gradient(total_loss, policy.trainable_variables)
 
-                    """Add to total loss"""
-                    total_loss += loss
+        """Gradient Clipping"""
+        if self.grad_clipping is not None:
+            grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
-            """Calculate gradients"""
-            grads = tape.gradient(total_loss, policy.trainable_variables)
+        """Diagnostics"""
+        self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
+        self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
+                         "gradients")
 
-            """Gradient Clipping"""
-            if self.grad_clipping is not None:
-                grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
+        """Backprop"""
+        policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
 
-            """Diagnostics"""
-            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
-            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"], "gradients")
-
-            """Backprop"""
-            policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
-
-            """Record learning rate"""
-            self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
+        """Record learning rate"""
+        self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
 
         """Policy update strategy (If applicable)."""
         if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:
@@ -214,10 +222,51 @@ class Agent:
                     self.inference_policy.set_weights(policy.get_weights())
                 self.policy_update_counter = 0
             else:
-                raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % strategy)
+                raise NotImplementedError(
+                    "The policy update strategy %s is not implemented for the BaseAgent." % strategy)
 
-        """Update metrics for training"""
-        self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "time/training")
-        self.metrics.add("epochs", 1, ["sum_total"], "time/training")
-        self.metrics.add("total", total_loss, ["sum_mean_frequent", "mean_total"], "loss")
-        return total_loss
+        return np.asarray(losses)
+
+    def train(self, **kwargs):
+        # For each policy
+        for name, policy in self.training_policies:
+
+            # Pack policy into the data stream
+            kwargs["policy"] = policy
+            kwargs["name"] = name
+
+            # Retrieve batch of data
+            batch = self.batch.get()
+
+            # Perform calculations prior to training
+            for opname, operation in self.operations.items():
+                return_op = operation(**batch, **kwargs)
+
+                if isinstance(return_op, dict):
+                    for k, v in return_op.items():
+                        batch[k] = v
+                else:
+                    batch[opname] = return_op
+
+            batch_indices = np.arange(self.batch.counter)  # We use counter because episodic wil vary in bsize.
+            # Calculate mini-batch size
+            for epoch in range(self.epochs):
+
+                # Shuffle the batch indices
+                if self.batch_shuffle:
+                    np.random.shuffle(batch_indices)
+
+                for i in range(0, self.batch.counter, self.batch.mbsize):
+                    # Sample indices for the mini-batch
+                    mb_indexes = batch_indices[i:i + self.batch.mbsize]
+
+                    # Cast all elements to numpy arrays
+                    mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}
+
+                    losses = self._backprop(**mb, **kwargs)
+
+                self.metrics.add("epochs", 1, ["sum_total"], "time/training")
+
+            self.policy_update_counter += 1
+            self.batch.done()
+            return losses

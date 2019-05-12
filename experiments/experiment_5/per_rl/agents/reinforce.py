@@ -37,24 +37,13 @@ class REINFORCE(Agent):
         start = time.perf_counter()
         pred = super().predict(inputs)
 
+
         action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
 
         self.data["action"] = tf.one_hot(action, self.action_space)
 
         self.metrics.add("inference_time", time.perf_counter() - start, ["mean_total"], "time")
         return action.numpy()
-
-    def observe(self, **kwargs):
-        ready = super().observe(**kwargs)
-
-        if ready:
-
-            s = time.perf_counter()
-
-            for batch in self.batch.flush():
-                self.train(**batch)
-
-            self.metrics.add("training_time", time.perf_counter() - s, ["mean_total"], "time")
 
     def policy_loss(self, logits, action, advantage, **kwargs):
         assert logits.shape == action.shape
@@ -93,17 +82,4 @@ class REINFORCE(Agent):
             baseline = 0
 
         returns = discounted_rewards - baseline
-        return returns
-
-    def generalized_advantage_estimation(self, values, next_value, rewards, terminals, gamma=0.99, tau=0.95):
-        # TODO not really working ...
-        nvalues = np.concatenate((values.numpy(), [next_value]))
-        gae = 0
-        returns = []
-        for step in reversed(range(len(rewards))):
-
-            delta = rewards[step] + gamma * nvalues[step + 1] * terminals[step] - nvalues[step]
-            gae = delta + gamma * tau * terminals[step] * gae
-            returns.insert(0, gae + nvalues[step])
-
         return returns

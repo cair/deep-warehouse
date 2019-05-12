@@ -84,23 +84,23 @@ class PPOPolicy(Policy):
         self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits',
                                             dtype=self.agent.dtype)
 
-        self.state_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.state_value = tf.keras.layers.Dense(1,
+        self.action_value_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.action_value = tf.keras.layers.Dense(1,
                                                  activation="linear",
                                                  name="state_value",
                                                  dtype=self.agent.dtype
                                                  )
 
-    def call(self, inputs):
+    def call(self, inputs, **kwargs):
         x = self.h_1(inputs)
         x = self.h_2(x)
         x = self.h_3(x)
         x = self.h_4(x)
 
         policy_logits = self.logits(x)
-        state_value = self.state_value(self.state_value_1(x))
+        action_value = self.action_value(self.action_value_1(x))
 
         return {
-            "policy_logits": policy_logits,
-            "action_value": state_value
+            "logits": policy_logits,
+            "action_value": tf.squeeze(action_value)
         }

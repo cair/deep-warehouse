@@ -6,6 +6,7 @@ from experiments.experiment_5.per_rl.agents.configuration.models import PGPolicy
 REINFORCE = dict(
     batch_mode="episodic",
     batch_size=32,
+    batch_shuffle=False,
     policies=dict(
         target=lambda agent: PGPolicy(
             agent=agent,
@@ -18,9 +19,10 @@ REINFORCE = dict(
 
 A2C = dict(
     batch_mode="steps",
-    batch_size=32,
-    mini_batches=8,
+    batch_size=64,
+    mini_batches=1,
     entropy_coef=0.001,
+    batch_shuffle=False,
     policies=dict(
         step=lambda agent: A2CPolicy(
             agent=agent,
@@ -44,11 +46,15 @@ A2C = dict(
 
 PPO = dict(
     batch_mode="steps",
-    batch_size=64,
+    epochs=10,
+    batch_size=256,    # 2048
+    batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
+    mini_batches=8,  # 32
     entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
     value_coef=0.5,
+    gamma=0.99,
     value_loss="huber",
-    max_grad_norm=None,
+    grad_clipping=None,
     baseline="reward_mean",
     policies=dict(
         # The training policy (The new one)
