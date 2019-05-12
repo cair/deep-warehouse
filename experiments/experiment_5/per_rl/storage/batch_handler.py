@@ -31,12 +31,13 @@ class DynamicBatch:
 
             self.data[k].append(np.squeeze(v))
 
+        self.counter += 1
         if self.episodic:
             try:
                 return bool(kwargs["terminal"])
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
-        self.counter += 1
+
         return self.counter == self.bsize
 
     def get(self):

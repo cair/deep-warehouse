@@ -150,6 +150,8 @@ class Agent:
             **self.data
         )
 
+
+
         if ready:  # or not self.inference_only:
             train_start = time.perf_counter()
             losses = self.train()
@@ -220,6 +222,7 @@ class Agent:
         batch_indices = np.arange(self.batch.counter)  # We use counter because episodic wil vary in bsize.
         # Calculate mini-batch size
         for epoch in range(self.epochs):
+
 
             # Shuffle the batch indices
             if self.batch_shuffle:

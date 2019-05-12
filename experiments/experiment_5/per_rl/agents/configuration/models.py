@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow.python.training.tracking.data_structures import _DictWrapper
 
 from experiments.experiment_5.per_rl import utils
-import numpy as np
 
 class Policy(tf.keras.models.Model):
     DEFAULTS = dict()

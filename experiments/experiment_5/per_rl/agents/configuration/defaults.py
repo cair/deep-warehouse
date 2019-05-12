@@ -8,9 +8,12 @@ REINFORCE = dict(
     batch_shuffle=False,
     policy=lambda agent: PGPolicy(
         agent=agent,
-        inference=True,
-        training=True,
-        optimizer=tf.keras.optimizers.Adam(lr=0.001)
+        dual=False,
+        optimizer=tf.keras.optimizers.Adam(lr=0.001),
+        update=dict(
+            interval=1,
+            strategy="copy"
+        )
     )
 )
 
@@ -36,22 +39,22 @@ A2C = dict(
 
 PPO = dict(
     batch_mode="steps",
-    epochs=10,
-    batch_size=1024,  # 2048
+    epochs=2,
+    batch_size=256,  # 2048
     batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
-    mini_batches=32,  # 32
-    entropy_coef=0.03,  # Entropy should be 0.0 for continous action spaces.  # TODO
+    mini_batches=1,  # 32
+    entropy_coef=0.002,  # Entropy should be 0.0 for continous action spaces.  # TODO
     value_coef=0.5,
     gamma=0.99,
-    value_loss="huber",
+    value_loss="mse",
     grad_clipping=None,
-    baseline="reward_mean",
+    baseline=None,
     policy=lambda agent: PPOPolicy(
         agent=agent,
         dual=True,
         optimizer=dict(
-            policy=tf.keras.optimizers.RMSprop(lr=0.001),
-            value=tf.keras.optimizers.Adam(lr=0.01),
+            policy=tf.keras.optimizers.Adam(lr=0.001),
+            value=tf.keras.optimizers.RMSprop(lr=0.001),
         ),
         n_trainers=1,
         update=dict(
