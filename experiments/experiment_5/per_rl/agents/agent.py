@@ -150,8 +150,6 @@ class Agent:
             **self.data
         )
 
-
-
         if ready:  # or not self.inference_only:
             train_start = time.perf_counter()
             losses = self.train()

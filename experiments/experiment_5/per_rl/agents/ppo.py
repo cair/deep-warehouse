@@ -13,6 +13,8 @@
 # TODO
 # https://github.com/Anjum48/rl-examples/blob/master/ppo/ppo_joined.py very nice implementation using dataset...
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
+
+# DO SOME https://github.com/ray-project/ray/blob/master/python/ray/rllib/agents/ppo/ppo.py
 from scipy.signal import lfilter
 import tensorflow as tf
 from experiments.experiment_5.per_rl.agents.a2c import A2C
@@ -23,7 +25,12 @@ import numpy as np
 class PPO(A2C):
     DEFAULTS = defaults.PPO
 
-    def __init__(self, gae_lambda=0.95, epsilon=0.2, **kwargs):
+    def __init__(self,
+                 gae_lambda=1.0,
+                 epsilon=0.3,
+                 kl_coef=0.2,
+                 **kwargs
+                 ):
 
         super(PPO, self).__init__(**Agent.arguments())
         self.epsilon = epsilon  # Clipping coefficient
