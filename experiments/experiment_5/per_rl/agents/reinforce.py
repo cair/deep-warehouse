@@ -38,7 +38,7 @@ class REINFORCE(Agent):
         pred = super().predict(inputs)
 
 
-        action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
+        action = tf.squeeze(tf.random.categorical([pred["logits"]], 1))
 
         self.data["action"] = tf.one_hot(action, self.action_space)
 

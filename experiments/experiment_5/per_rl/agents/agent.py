@@ -22,7 +22,7 @@ class Agent:
     def __init__(self,
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
-                 policies: dict,
+                 policy,
                  policy_update=dict(
                      interval=5,  # Update every 5 training epochs,
                      strategy="copy",  # "copy, mean"
@@ -55,15 +55,14 @@ class Agent:
         """Define properties."""
         self.obs_space = obs_space
         self.action_space = action_space
-        self.policies = policies
         self.batch_mode = batch_mode
         self.batch_size = batch_size
         self.batch_shuffle = batch_shuffle
         self.mini_batches = mini_batches
         self.dtype = dtype
         self.grad_clipping = grad_clipping
-        self.inference_only = inference_only
         self.epochs = epochs
+        self.policy = policy(self)  # Initialize policy
 
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
@@ -76,30 +75,17 @@ class Agent:
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(hyper_parameters)))
 
-        self.policies = {
-            k: v(self) for k, v in policies.items()
-        }
 
         if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
                                       (batch_mode, Agent.SUPPORTED_BATCH_MODES))
         self.batch_mode = batch_mode
-        """Find all policies with inference flag set. Ensure that its only 1 and assign as the inference 
-        policy. """
-        self.inference_policy = [x for k, x in self.policies.items() if x.inference]
-        if len(self.inference_policy) != 1:
-            raise ValueError("There can only be 1 policy with the flag training=False.")
-        self.inference_policy = self.inference_policy[0]
-
-        """This list contains names of policies that should be trained"""
-        self.training_policies = [(k, x) for k, x in self.policies.items() if x.training]
 
         # Policy update. This is the strategy used when using multiple policies (ie one trainer and one predictor)
         # Settings here determine how updates should be performed.
-        self.policy_update = policy_update
-        self.policy_update_counter = 0
-        self.policy_update_frequency = self.policy_update["interval"]
-        self.policy_update_enabled = len(self.policies) > 1
+        #self.policy_update = policy_update
+        #self.policy_update_counter = 0
+        #self.policy_update_frequency = self.policy_update["interval"]
 
         self.batch = DynamicBatch(
             agent=self,
@@ -137,7 +123,7 @@ class Agent:
             inputs = inputs[None, :]
         self.data["inputs"] = inputs
 
-        pred = self.inference_policy(inputs)
+        pred = self.policy(inputs)
         self.data.update(pred)
 
         return pred
@@ -206,7 +192,7 @@ class Agent:
                          "gradients")
 
         """Backprop"""
-        policy.optimizer.apply_gradients(zip(grads, policy.trainable_variables))
+        policy.optimize(grads)
 
         """Record learning rate"""
         self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
@@ -229,7 +215,7 @@ class Agent:
 
     def train(self, **kwargs):
         # For each policy
-        for name, policy in self.training_policies:
+        for name, policy in self.policy.trainers:
 
             # Pack policy into the data stream
             kwargs["policy"] = policy

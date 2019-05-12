@@ -24,6 +24,7 @@ class PPO(A2C):
     DEFAULTS = defaults.PPO
 
     def __init__(self, gae_lambda=0.95, epsilon=0.2, **kwargs):
+
         super(PPO, self).__init__(**Agent.arguments())
         self.epsilon = epsilon  # Clipping coefficient
         self.gae_lambda = gae_lambda
@@ -33,7 +34,7 @@ class PPO(A2C):
 
     def old_logits(self, inputs, **kwargs):
 
-        pi_old = self.inference_policy(inputs)
+        pi_old = self.policy(inputs)
         return pi_old["logits"]
 
     def policy_loss(self, logits, action, advantage, **kwargs):
