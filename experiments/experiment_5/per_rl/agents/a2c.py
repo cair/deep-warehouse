@@ -13,14 +13,12 @@ class A2C(REINFORCE):
                  value_coef=0.5,  # For action_value_loss, we multiply by this factor
                  value_loss="mse",
                  tau=0.95,
-                 grad_clipping=0.1,
                  **kwargs):
         super(A2C, self).__init__(**Agent.arguments())
 
         self.value_coef = value_coef
         self.value_loss = value_loss
         self.tau = tau
-        self.grad_clipping = grad_clipping
 
         self.metrics.text("explained_variance", "Explained Variance is an attempt to measure the quality of the state "
                                                 "value.  \n"

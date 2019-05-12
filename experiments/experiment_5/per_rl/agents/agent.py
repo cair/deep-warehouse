@@ -159,100 +159,82 @@ class Agent:
             self.metrics.add("training_time", time.perf_counter() - train_start, ["mean_total"], "time")
             self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "time/training")
 
-    def _backprop(self, name, policy, **kwargs):
+    def _backprop(self, **kwargs):
         total_loss = 0
         losses = []
+        for policy_name, policy in self.policy.trainers + [("root", self.policy)]:
 
-        """Run all loss functions"""
-        with tf.GradientTape() as tape:
+            """Run all loss functions"""
+            with tf.GradientTape() as tape:
 
-            pred = policy(**kwargs)
-            kwargs.update(pred)
+                pred = policy(**kwargs)
+                kwargs.update(pred)
 
-            for loss_name, loss_fn in self.losses.items():
-                loss = loss_fn(**kwargs)
+                for loss_name, loss_fn in self.losses.items():
+                    loss = loss_fn(**kwargs)
 
-                """Add metric for loss"""
-                self.metrics.add(loss_name + "/" + name, loss, ["mean_total"], "loss")
+                    """Add metric for loss"""
+                    self.metrics.add(loss_name + "/<name>", loss, ["mean_total"], "loss")
 
-                """Add to total loss"""
-                total_loss += loss
-                losses.append(loss)
+                    """Add to total loss"""
+                    total_loss += loss
+                    losses.append(loss)
 
-        """Calculate gradients"""
-        grads = tape.gradient(total_loss, policy.trainable_variables)
+            """Calculate gradients"""
+            grads = tape.gradient(total_loss, policy.trainable_variables)
 
-        """Gradient Clipping"""
-        if self.grad_clipping is not None:
-            grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
+            """Gradient Clipping"""
+            if self.grad_clipping is not None:
+                grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
-        """Diagnostics"""
-        self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
-        self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
-                         "gradients")
+            """Diagnostics"""
+            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
+            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
+                             "gradients")
 
-        """Backprop"""
-        policy.optimize(grads)
+            """Backprop"""
+            policy.optimize(grads)
 
-        """Record learning rate"""
-        self.metrics.add("lr/" + name, policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter")
-
-        """Policy update strategy (If applicable)."""
-        if self.policy_update_enabled and self.policy_update_counter % self.policy_update_frequency == 0:
-            strategy = self.policy_update["strategy"]
-
-            if strategy == "mean":
-                raise NotImplementedError("Not implemented yet")
-            elif strategy == "copy":
-                for name, policy in self.training_policies:
-                    self.inference_policy.set_weights(policy.get_weights())
-                self.policy_update_counter = 0
-            else:
-                raise NotImplementedError(
-                    "The policy update strategy %s is not implemented for the BaseAgent." % strategy)
+            """Record learning rate"""
+            #self.metrics.add("lr/....", policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter") # todo name
 
         return np.asarray(losses)
 
     def train(self, **kwargs):
-        # For each policy
-        for name, policy in self.policy.trainers:
 
-            # Pack policy into the data stream
-            kwargs["policy"] = policy
-            kwargs["name"] = name
+        kwargs["policy"] = self.policy
 
-            # Retrieve batch of data
-            batch = self.batch.get()
+        # Retrieve batch of data
+        batch = self.batch.get()
 
-            # Perform calculations prior to training
-            for opname, operation in self.operations.items():
-                return_op = operation(**batch, **kwargs)
+        # Perform calculations prior to training
+        for opname, operation in self.operations.items():
+            return_op = operation(**batch, **kwargs)
 
-                if isinstance(return_op, dict):
-                    for k, v in return_op.items():
-                        batch[k] = v
-                else:
-                    batch[opname] = return_op
+            if isinstance(return_op, dict):
+                for k, v in return_op.items():
+                    batch[k] = v
+            else:
+                batch[opname] = return_op
 
-            batch_indices = np.arange(self.batch.counter)  # We use counter because episodic wil vary in bsize.
-            # Calculate mini-batch size
-            for epoch in range(self.epochs):
+        batch_indices = np.arange(self.batch.counter)  # We use counter because episodic wil vary in bsize.
+        # Calculate mini-batch size
+        for epoch in range(self.epochs):
 
-                # Shuffle the batch indices
-                if self.batch_shuffle:
-                    np.random.shuffle(batch_indices)
+            # Shuffle the batch indices
+            if self.batch_shuffle:
+                np.random.shuffle(batch_indices)
 
-                for i in range(0, self.batch.counter, self.batch.mbsize):
-                    # Sample indices for the mini-batch
-                    mb_indexes = batch_indices[i:i + self.batch.mbsize]
+            for i in range(0, self.batch.counter, self.batch.mbsize):
+                # Sample indices for the mini-batch
+                mb_indexes = batch_indices[i:i + self.batch.mbsize]
 
-                    # Cast all elements to numpy arrays
-                    mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}
+                # Cast all elements to numpy arrays
+                mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}
 
-                    losses = self._backprop(**mb, **kwargs)
+                losses = self._backprop(**mb, **kwargs)
 
-                self.metrics.add("epochs", 1, ["sum_total"], "time/training")
+            self.metrics.add("epochs", 1, ["sum_total"], "time/training")
 
-            self.policy_update_counter += 1
-            self.batch.done()
-            return losses
+        self.batch.done()
+        return losses
