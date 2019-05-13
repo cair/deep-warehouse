@@ -34,7 +34,7 @@ class A2C(REINFORCE):
         #V1 = policy(obs1)["action_value"] # (V1*self.gamma)
 
         advantage = returns - tf.stop_gradient(action_value)
-        self.metrics.add("explained-variance", utils.explained_variance(action_value, returns), ["sum_mean_frequent", "mean_total"], "loss")
+        #self.metrics.add("explained-variance", utils.explained_variance(action_value, returns), ["sum_mean_frequent", "mean_total"], "loss")
 
         return advantage
 

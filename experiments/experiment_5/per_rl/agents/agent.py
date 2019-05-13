@@ -134,12 +134,12 @@ class Agent:
         self.data.update(**kwargs)
 
         """Metrics update."""
-        #self.metrics.add("steps", 1, ["sum"], "summary", episode=True, epoch=True, total=True)
+        self.metrics.add("steps", 1, ["sum"], "summary", episode=True, epoch=True, total=True)
         #self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent", "sum_mean_total"], "summary")
 
         if kwargs["terminal"]:
             self.metrics.done(episode=True)
-            self.metrics.summarize(stdout=True)
+            #self.metrics.summarize(stdout=True)
 
         ready = self.batch.add(
             **self.data
@@ -231,7 +231,7 @@ class Agent:
 
             #self.metrics.add("epochs", 1, ["sum_total"], "time/training")
 
-        self.metrics.add("iterations_per_episode", 1, ["sum"], "time/training", episode=True)
+        #self.metrics.add("iterations_per_episode", 1, ["sum"], "time/training", episode=True)
         self.metrics.done(epoch=True)
         self.batch.done()
         return losses

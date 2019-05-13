@@ -90,13 +90,16 @@ class GenericMetric:
         self.epoch = epoch
         self.total = total
 
-      
-
+        self.status = np.array([False, False])
         self.calculated_episode = 0
         self.calculated_epoch = 0
         self.calculated_total = 0
 
         self.data = []
+
+        self.fn = {
+            "sum": lambda d: np.sum(self.data) + d
+        }
 
         """self.old_data = []
         self.old_data_summed = []
@@ -122,12 +125,27 @@ class GenericMetric:
     def __call__(self, a):
         self.data.append(a)
 
-    def update(self):
-        print(self.episode, self.epoch)
+    def done(self, episode=False, epoch=False):
 
-        if self.episode:
+        if episode and not self.status[0]:
+            self.calculated_episode = self.fn[self.type](self.calculated_episode)
+            self.status[0] = True
 
+        if epoch and not self.status[1]:
+            self.calculated_epoch = self.fn[self.type](self.calculated_epoch)
+            self.status[1] = True
 
+        if np.all(self.status):
+            self.calculated_total = self.fn[self.type](self.calculated_total)
+
+            self.status[:] = False
+            self.data.clear()
+
+            print(self.calculated_episode, self.calculated_epoch, self.calculated_total)
+            self.calculated_epoch = 0
+            self.calculated_episode = 0
+            # store calculated epochs episodes in arrays instead. then send this in results and empty after.
+            print("-----------------------")
 
     def result(self):
         #if self.episode:
@@ -208,7 +226,7 @@ class Metrics:
             if type not in Metrics.supported:
                 raise NotImplementedError("Metric of type %s is not supported." %type)
 
-            if name not in self.metrics:
+            if name not in self.metrics[type]:
                 self.metrics[type][name] = GenericMetric(
                     self,
                     name=name,
@@ -231,7 +249,7 @@ class Metrics:
 
         for type, metrics in self.metrics.items():
             for name, metric in metrics.items():
-                metric.update()
+                metric.done(episode=episode, epoch=epoch)
 
     def summary(self, name, data):
         tf.summary.scalar("%s" % name, data, 0)
