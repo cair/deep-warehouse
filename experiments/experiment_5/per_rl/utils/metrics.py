@@ -72,13 +72,36 @@ class MeanInfinite(Mean):
 
 class GenericMetric:
 
-    def __init__(self, name, dtype, types, tags):
-        self.old_data = []
-        self.old_data_summed = []
-        self.data = []
+    def __init__(self,
+                 engine,
+                 name,
+                 dtype,
+                 type,
+                 tags,
+                 episode,
+                 epoch,
+                 total
+                 ):
+        self.engine = engine
         self.name = name
         self.tags = tags
-        self.types = types
+        self.type = type
+        self.episode = episode
+        self.epoch = epoch
+        self.total = total
+
+      
+
+        self.calculated_episode = 0
+        self.calculated_epoch = 0
+        self.calculated_total = 0
+
+        self.data = []
+
+        """self.old_data = []
+        self.old_data_summed = []
+        self.data = []
+ 
 
         self.fns = {
             "mean_episode": lambda: np.mean(self.data, dtype=np.float32),
@@ -94,20 +117,23 @@ class GenericMetric:
         # Sum Total (All episodes)
         # Sum (One episode)
         # Average (Episode)
-        # Average (All Episodes)
+        # Average (All Episodes)"""
 
     def __call__(self, a):
-
         self.data.append(a)
 
-    def reset_states(self):
-        self.old_data_summed.append(np.sum(self.data))
-        self.old_data.extend(self.data)
-        self.data.clear()
+    def update(self):
+        print(self.episode, self.epoch)
+
+        if self.episode:
+
+
 
     def result(self):
+        #if self.episode:
         return {
-            d: self.fns[d]() for d in self.types
+            "test": 1
+            #d: self.fns[d]() for d in self.types
         }
 
     @property
@@ -119,68 +145,100 @@ class GenericMetric:
 
 
 class Metrics:
+    supported = {
+        "mean": "Between last metric and current metric",
+        "sum": "",
+        # "mean_episode": "After an episode is completed, this take the mean over all elements collected",
+        # "sum_mean_frequent": "After an episode is completed, this take the mean over summed values from current and previous episodes",
+        # "mean_total": "Takes the mean over all elements collected so far.",
+        # "sum_episode": "Sums all the values collected for the episode",
+        # "sum_total": "Sums all the values collected for all episodes",
+        # "stddev_episode": "Standard deviation for data collected in a single episode",
+        # "stddev_total": "Standard deviation for data collected in all episodes"
+    }
 
     def __init__(self, agent):
         self.agent = agent
-        self.episode = 0
-        self.epoch = 1
-        self.avg_len = 100
-        self.metrics = {}
 
-        self.fns_explaination = {
-            "mean_episode": "After an episode is completed, this take the mean over all elements collected",
-            "sum_mean_frequent": "After an episode is completed, this take the mean over summed values from current and previous episodes",
-            "mean_total": "Takes the mean over all elements collected so far.",
-            "sum_episode": "Sums all the values collected for the episode",
-            "sum_total": "Sums all the values collected for all episodes",
-            "stddev_episode": "Standard deviation for data collected in a single episode",
-            "stddev_total": "Standard deviation for data collected in all episodes"
+        self.measures = dict(
+            episode=1,
+            epoch=1,
+        )
+        self.metrics = {
+            t: {} for t in Metrics.supported.keys()
         }
 
-        for k, v in self.fns_explaination.items():
+        for k, v in Metrics.supported.items():
             self.text("Metrics", k + ": " + v)
 
-
     def reset(self):
-        for k, metric in self.metrics.items():
+        for metric in self.metrics:
             metric.reset_states()
 
     def get(self, name):
         return self.metrics[name]
 
-    def summarize(self):
-        res_str = "Episode: %s | " % self.episode
-        for k, metric in self.metrics.items():
+    def summarize(self, stdout=False):
 
-            data = metric.result()
-            for k, r in data.items():
-                k = metric.fullname(k)
+        if stdout:
+            stdout_vec = [
+                "%s: %s" % (k.capitalize(), v) for k, v in self.measures.items()
+            ]
 
-                res_str += "%s: %.5f | " % (k.capitalize(), float(r))
-                if not np.isnan(r):
-                    self.summary(k, r)
+        for type, metrics in self.metrics.items():
+            for name, metric in metrics.items():
 
-        logging.log(logging.DEBUG, res_str)
-        self.reset()
-        self.episode += 1
+                for k, r in metric.result().items():
+                    k = metric.fullname(k)
 
-    def add(self, name, value, types, tags):
+
+
+                    if stdout:
+                        stdout_vec.append("%s: %.5f | " % (k.capitalize(), float(r)))
+
+                    if not np.isnan(r):
+                        self.summary(k, r)
+
+            logging.log(logging.DEBUG, " | ".join(stdout_vec))
+
+    def add(self, name, value, types, tags, episode=False, epoch=False, total=False):
+
+        # There is no metric of that name
+        for type in types:
+            if type not in Metrics.supported:
+                raise NotImplementedError("Metric of type %s is not supported." %type)
 
             if name not in self.metrics:
-                self.metrics[name] = GenericMetric(
+                self.metrics[type][name] = GenericMetric(
+                    self,
                     name=name,
                     dtype=self.agent.dtype,
-                    types=types,
-                    tags=tags
+                    type=type,
+                    tags=tags,
+                    episode=episode,
+                    epoch=epoch,
+                    total=total
                 )
 
-            self.metrics[name](value)
+            self.metrics[type][name](value)
+
+    def done(self, episode=False, epoch=False):
+        if episode:
+            self.measures["episode"] += 1
+
+        if epoch:
+            self.measures["epoch"] += 1
+
+        for type, metrics in self.metrics.items():
+            for name, metric in metrics.items():
+                metric.update()
 
     def summary(self, name, data):
-        tf.summary.scalar("%s" % name, data, self.episode)
+        tf.summary.scalar("%s" % name, data, 0)
 
     def text(self, name, data):
-        tf.summary.text(name, data, self.episode)
+        tf.summary.text(name, data, 0)
+
 
     # def histogram(self, name, distribution):
     #    tf.scalar.histogram("sysx/%s" % name, distribution, self.episode)

@@ -33,15 +33,11 @@ class REINFORCE(Agent):
         if entropy_coef != 0:
             self.add_loss("entropy_loss", self.entropy_loss)
 
-    def predict(self, inputs):
-        start = time.perf_counter()
-        pred = super().predict(inputs)
-
+    def _predict(self, inputs):
+        pred = super()._predict(inputs)
         action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
-
         self.data["action"] = tf.one_hot(action, self.action_space)
 
-        self.metrics.add("inference_time", time.perf_counter() - start, ["mean_total"], "time")
         return action.numpy()
 
     def policy_loss(self, logits, action, advantage, **kwargs):

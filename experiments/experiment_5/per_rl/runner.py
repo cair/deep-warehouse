@@ -24,7 +24,7 @@ def main(argv):
     benchmark = False
     episodes = 100000
     env_name = "CartPole-v0"
-    env_name = "deep-logistics-normal-v0"
+    #env_name = "deep-logistics-normal-v0"
 
     def submit(args):
         AGENT, spec, episodes = args
@@ -56,7 +56,7 @@ def main(argv):
             tensorboard_enabled=True,
             tensorboard_path="./tb/"
         ), episodes))"""
-        submit((PPO, dict(
+        submit((REINFORCE, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,

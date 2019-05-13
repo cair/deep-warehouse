@@ -23,10 +23,6 @@ class Agent:
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  policy,
-                 policy_update=dict(
-                     interval=5,  # Update every 5 training epochs,
-                     strategy="copy",  # "copy, mean"
-                 ),
                  batch_shuffle=False,
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
@@ -36,8 +32,8 @@ class Agent:
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
-                 name_prefix=None,
-                 inference_only=False):
+                 name_prefix=None):
+
         hyper_parameters = utils.get_defaults(self, Agent.arguments())
 
         self.name = self.__class__.__name__
@@ -75,17 +71,10 @@ class Agent:
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(hyper_parameters)))
 
-
         if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
                                       (batch_mode, Agent.SUPPORTED_BATCH_MODES))
         self.batch_mode = batch_mode
-
-        # Policy update. This is the strategy used when using multiple policies (ie one trainer and one predictor)
-        # Settings here determine how updates should be performed.
-        #self.policy_update = policy_update
-        #self.policy_update_counter = 0
-        #self.policy_update_frequency = self.policy_update["interval"]
 
         self.batch = DynamicBatch(
             agent=self,
@@ -112,8 +101,7 @@ class Agent:
     def remove_loss(self, name):
         del self.losses[name]
 
-    # @tf.function
-    def predict(self, inputs):
+    def _predict(self, inputs):
         """
         :param inputs: DATA INPUT
         :param policy: Which policy to use. When None, self.inference_policy will be used.
@@ -128,6 +116,12 @@ class Agent:
 
         return pred
 
+    def predict(self, inputs):
+        start = time.perf_counter()
+        pred = self._predict(inputs)
+        #self.metrics.add("inference_time", time.perf_counter() - start, ["mean"], "time") TODO - HERE
+        return pred
+
     def observe(self, **kwargs):
         """
         Observe the resulting transition
@@ -140,11 +134,12 @@ class Agent:
         self.data.update(**kwargs)
 
         """Metrics update."""
-        self.metrics.add("steps", 1, ["sum_episode", "sum_mean_total"], "summary")
-        self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent", "sum_mean_total"], "summary")
+        #self.metrics.add("steps", 1, ["sum"], "summary", episode=True, epoch=True, total=True)
+        #self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent", "sum_mean_total"], "summary")
 
         if kwargs["terminal"]:
-            self.metrics.summarize()
+            self.metrics.done(episode=True)
+            self.metrics.summarize(stdout=True)
 
         ready = self.batch.add(
             **self.data
@@ -155,9 +150,8 @@ class Agent:
             losses = self.train()
 
             """Update metrics for training"""
-            self.metrics.add("total", np.mean(losses), ["sum_mean_frequent", "mean_total"], "loss")
-            self.metrics.add("training_time", time.perf_counter() - train_start, ["mean_total"], "time")
-            self.metrics.add("iteration_per_episode", 1, ["sum_episode"], "time/training")
+            #self.metrics.add("total", np.mean(losses), ["sum_mean_frequent", "mean_total"], "loss")
+            #self.metrics.add("training_time", time.perf_counter() - train_start, ["mean_total"], "time")
 
     def _backprop(self, **kwargs):
         total_loss = 0
@@ -174,7 +168,7 @@ class Agent:
                     loss = loss_fn(**kwargs)
 
                     """Add metric for loss"""
-                    self.metrics.add(loss_name + "/<name>", loss, ["mean_total"], "loss")
+                    #self.metrics.add(loss_name + "/<name>", loss, ["mean_total"], "loss")
 
                     """Add to total loss"""
                     total_loss += loss
@@ -188,9 +182,9 @@ class Agent:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
             """Diagnostics"""
-            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
-            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
-                             "gradients")
+            #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
+            #self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
+            #                 "gradients")
 
             """Backprop"""
             policy.optimize(grads)
@@ -235,7 +229,9 @@ class Agent:
 
                 losses = self._backprop(**mb, **kwargs)
 
-            self.metrics.add("epochs", 1, ["sum_total"], "time/training")
+            #self.metrics.add("epochs", 1, ["sum_total"], "time/training")
 
+        self.metrics.add("iterations_per_episode", 1, ["sum"], "time/training", episode=True)
+        self.metrics.done(epoch=True)
         self.batch.done()
         return losses
