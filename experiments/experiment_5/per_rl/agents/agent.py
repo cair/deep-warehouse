@@ -190,7 +190,8 @@ class Agent:
             policy.optimize(grads)
 
             """Record learning rate"""
-            self.metrics.add(policy_name + "/learning-rate", policy.optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True) # todo name
+            for optimizer_name, optimizer in policy.optimizer.items():
+                self.metrics.add(policy_name + "/" + optimizer_name + "/learning-rate", optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True) # todo name
 
         self.policy.optimize(None)
         return np.asarray(losses)

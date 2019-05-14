@@ -132,8 +132,8 @@ class Metrics:
         self.agent = agent
 
         self.measures = dict(
-            episode=1,
-            epoch=1,
+            episode=0,
+            epoch=0,
         )
 
         self.metrics = {

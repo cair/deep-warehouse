@@ -26,7 +26,7 @@ class PPO(A2C):
     DEFAULTS = defaults.PPO
 
     def __init__(self,
-                 gae_lambda=1.0,
+                 gae_lambda=0.99,
                  epsilon=0.3,
                  kl_coef=0.2,
                  **kwargs
@@ -43,6 +43,24 @@ class PPO(A2C):
 
         pi_old = self.policy(inputs)
         return pi_old["logits"]
+
+    """
+    # Clip the value to reduce variability during Critic training
+        # Get the predicted value
+        vpred = train_model.vf
+        vpredclipped = OLDVPRED + tf.clip_by_value(train_model.vf - OLDVPRED, - CLIPRANGE, CLIPRANGE)
+        # Unclipped value
+        vf_losses1 = tf.square(vpred - R)
+        # Clipped value
+        vf_losses2 = tf.square(vpredclipped - R)
+
+        vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))
+    """
+
+    #def action_value_loss(self, action_value, advantage, returns, **kwargs):
+
+
+
 
     def policy_loss(self, logits, action, advantage, **kwargs):
         return self.clipped_surrogate_loss(logits, action, advantage, **kwargs)
@@ -62,6 +80,13 @@ class PPO(A2C):
         pg_losses_clipped = tf.clip_by_value(l_cpi, 1.0 - self.epsilon, 1.0 + self.epsilon) * -advantage
 
         pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses_clipped))
+
+        # Metrics
+        approxkl = .5 * tf.reduce_mean(tf.square(neg_log_new - neg_log_old))
+        clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(l_cpi - 1.0), self.epsilon), dtype=tf.float64))
+
+        self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
+        self.metrics.add("clipfrac", clipfrac, ["mean"], "train", epoch=True)
 
         return pg_loss
 

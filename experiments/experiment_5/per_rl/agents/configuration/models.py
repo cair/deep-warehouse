@@ -25,7 +25,7 @@ class Policy(tf.keras.models.Model):
             thiscls = self.__class__
             name = self.__class__.__name__
             n_trainers = kwargs["n_trainers"] if "n_trainers" in kwargs else 1
-            self.trainers = [("%s_%s" % (n, name), thiscls(agent=agent, dual=not dual, update=update, optimizer=optimizer)) for n in
+            self.trainers = [("%s/%s" % (n, name), thiscls(agent=agent, dual=not dual, update=update, optimizer=optimizer)) for n in
                              range(n_trainers)]
 
     def optimize(self, grads):
