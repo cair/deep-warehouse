@@ -119,7 +119,7 @@ class Agent:
     def predict(self, inputs):
         start = time.perf_counter()
         pred = self._predict(inputs)
-        #self.metrics.add("inference_time", time.perf_counter() - start, ["mean"], "time") TODO - HERE
+        self.metrics.add("inference", time.perf_counter() - start, ["mean"], "time", episode=True)
         return pred
 
     def observe(self, **kwargs):
@@ -134,12 +134,12 @@ class Agent:
         self.data.update(**kwargs)
 
         """Metrics update."""
-        self.metrics.add("steps", 1, ["sum"], "summary", episode=True, epoch=True, total=True)
-        #self.metrics.add("reward", kwargs["reward"], ["sum_episode", "sum_mean_frequent", "sum_mean_total"], "summary")
+        self.metrics.add("steps", 1, ["sum", "mean"], None, episode=True, epoch=True, total=True)
+        self.metrics.add("reward", kwargs["reward"], ["sum", "mean"], None, episode=True, epoch=False, total=True)
 
         if kwargs["terminal"]:
             self.metrics.done(episode=True)
-            #self.metrics.summarize(stdout=True)
+            self.metrics.summarize(["reward", "steps"])
 
         ready = self.batch.add(
             **self.data
@@ -150,13 +150,13 @@ class Agent:
             losses = self.train()
 
             """Update metrics for training"""
-            #self.metrics.add("total", np.mean(losses), ["sum_mean_frequent", "mean_total"], "loss")
-            #self.metrics.add("training_time", time.perf_counter() - train_start, ["mean_total"], "time")
+            self.metrics.add("total", np.mean(losses), ["mean"], "loss", epoch=True, total=True)
+            self.metrics.add("backprop", time.perf_counter() - train_start, ["mean"], "time", epoch=True)
 
     def _backprop(self, **kwargs):
         total_loss = 0
         losses = []
-        for policy_name, policy in self.policy.trainers + [("root", self.policy)]:
+        for policy_name, policy in self.policy.trainers:
 
             """Run all loss functions"""
             with tf.GradientTape() as tape:
@@ -168,7 +168,7 @@ class Agent:
                     loss = loss_fn(**kwargs)
 
                     """Add metric for loss"""
-                    #self.metrics.add(loss_name + "/<name>", loss, ["mean_total"], "loss")
+                    self.metrics.add(policy_name + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 
                     """Add to total loss"""
                     total_loss += loss
@@ -182,16 +182,17 @@ class Agent:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
             """Diagnostics"""
-            #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["sum_mean_frequent"], "gradients")
-            #self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["sum_mean_frequent"],
-            #                 "gradients")
+            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
+            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["mean"],
+                             "gradients", epoch=True)
 
             """Backprop"""
             policy.optimize(grads)
 
             """Record learning rate"""
-            #self.metrics.add("lr/....", policy.optimizer.lr.numpy(), ["mean_total"], "hyper-parameter") # todo name
+            self.metrics.add(policy_name + "/learning-rate", policy.optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True) # todo name
 
+        self.policy.optimize(None)
         return np.asarray(losses)
 
     def train(self, **kwargs):
@@ -229,9 +230,8 @@ class Agent:
 
                 losses = self._backprop(**mb, **kwargs)
 
-            #self.metrics.add("epochs", 1, ["sum_total"], "time/training")
-
-        #self.metrics.add("iterations_per_episode", 1, ["sum"], "time/training", episode=True)
+        self.metrics.add("epochs", 1, ["sum"], "time/training", total=True, episode=True)
         self.metrics.done(epoch=True)
+
         self.batch.done()
         return losses
