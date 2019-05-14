@@ -3,34 +3,26 @@ import numpy as np
 from absl import flags, logging
 import time
 
-from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 
 FLAGS = flags
 logging.set_verbosity(logging.DEBUG)
 
-
+@DecoratedAgent
 class REINFORCE(Agent):
+    PARAMETERS = ["entropy_coef", "gamma", "baseline"]
     DEFAULTS = defaults.REINFORCE
 
-    def __init__(self,
-                 gamma=0.99,
-                 entropy_coef=0.001,
-                 baseline=None,
-                 **kwargs):
-
-        super(REINFORCE, self).__init__(**Agent.arguments())
-
-        self.entropy_coef = entropy_coef
-        self.gamma = gamma
-        self.baseline = baseline
+    def __init__(self, **kwargs):
+        super(REINFORCE, self).__init__(**kwargs)
 
         self.add_operation("returns", self.discounted_returns)
         self.add_operation("advantage", lambda returns, **kwargs: returns)
 
         self.add_loss("policy_loss", self.policy_loss, "**Policy loss (REINFORCE)**  \nThes policy loss will oscillate with training.")
 
-        if entropy_coef != 0:
+        if self.args["entropy_coef"] != 0:
             self.add_loss("entropy_loss", self.entropy_loss)
 
     def _predict(self, inputs):
@@ -52,7 +44,7 @@ class REINFORCE(Agent):
         #entropy_loss = -tf.reduce_mean(tf.losses.categorical_crossentropy(logits, logits, from_logits=True) * self.entropy_coef)
 
         log_prob = tf.math.softmax(logits)
-        entropy = self.entropy_coef * tf.reduce_mean(tf.reduce_sum(log_prob * tf.math.log(log_prob), axis=1))
+        entropy = self.args["entropy_coef"] * tf.reduce_mean(tf.reduce_sum(log_prob * tf.math.log(log_prob), axis=1))
         return -entropy
 
     def discounted_returns(self, reward, terminal, **kwargs):
@@ -63,7 +55,7 @@ class REINFORCE(Agent):
         cum_r = 0
         l = len(reward)
         for i in reversed(range(0, l)):
-            cum_r = reward[i] + (cum_r * self.gamma * (1 - terminal[i]))
+            cum_r = reward[i] + (cum_r * self.args["gamma"] * (1 - terminal[i]))
 
             discounted_rewards[i] = cum_r
 
@@ -71,7 +63,7 @@ class REINFORCE(Agent):
         np.nan_to_num(discounted_rewards, copy=False)
 
         """Baseline implementations."""
-        if self.baseline == "reward_mean":
+        if self.args["baseline"] == "reward_mean":
             baseline = np.mean(reward)
         else:
             baseline = 0

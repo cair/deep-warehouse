@@ -5,6 +5,9 @@ from experiments.experiment_5.per_rl.agents.configuration.models import PGPolicy
 REINFORCE = dict(
     batch_mode="episodic",
     batch_size=32,
+    gamma=0.99,
+    entropy_coef=0.001,
+    baseline=None,
     batch_shuffle=False,
     policy=lambda agent: PGPolicy(
         agent=agent,
@@ -19,6 +22,9 @@ REINFORCE = dict(
 
 A2C = dict(
     batch_mode="steps",
+    value_coef=0.5,  # For action_value_loss, we multiply by this factor
+    value_loss="mse",
+    tau=0.95,
     batch_size=64,
     mini_batches=1,
     entropy_coef=0.001,
@@ -39,16 +45,24 @@ A2C = dict(
 
 PPO = dict(
     batch_mode="steps",
-    epochs=1,
-    batch_size=64,  # 2048
-    batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
-    mini_batches=64,  # 32
+    gae_lambda=0.95,  # Lambda in General Advantange Estimation
+    epsilon=0.2,  # Clipping factor
+    kl_coef=0.2,  # TODO
     entropy_coef=0.0002,  # Entropy should be 0.0 for continous action spaces.  # TODO
     value_coef=0.5,
     gamma=0.99,
-    value_loss="mse",
+
+    batch_size=64,  # 2048
+    mini_batches=64,  # 32
+    epochs=1,  # TODO
+    batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
+
+    value_loss="mse",  # TODO
+
     grad_clipping=None,
-    baseline=None,
+
+    #baseline=None,
+
     policy=lambda agent: PPOPolicy(
         agent=agent,
         dual=True,

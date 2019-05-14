@@ -7,17 +7,20 @@ class Policy(tf.keras.models.Model):
     DEFAULTS = dict()
     arguments = utils.arguments
 
-    def __init__(self, agent,
+    def __init__(self,
+                 agent,
                  dual,
                  update,
+                 alias="root",
                  optimizer=tf.keras.optimizers.Adam(lr=0.001),
                  **kwargs):
         super(Policy, self).__init__()
+        self.alias = alias
         self.agent = agent
         self.dual = dual
         self.optimizer = optimizer
 
-        self.trainers = []
+        self.trainers = {}
         self.update = update
         self.i = 0
 
@@ -25,8 +28,12 @@ class Policy(tf.keras.models.Model):
             thiscls = self.__class__
             name = self.__class__.__name__
             n_trainers = kwargs["n_trainers"] if "n_trainers" in kwargs else 1
-            self.trainers = [("%s/%s" % (n, name), thiscls(agent=agent, dual=not dual, update=update, optimizer=optimizer)) for n in
-                             range(n_trainers)]
+            for n in range(n_trainers):
+                _alias = "%s/%s" % (n, name)
+                self.trainers[alias] =  thiscls(alias=_alias, agent=agent, dual=not dual, update=update, optimizer=optimizer)
+        else:
+            pass
+            #self.trainers[alias] = self
 
     def optimize(self, grads):
         self.i += 1
@@ -46,7 +53,7 @@ class Policy(tf.keras.models.Model):
                         weights = utils.average_weights([trainer.get_weights() for name, trainer in self.trainers])
                         self.set_weights(weights)
                     else:
-                        for name, trainer in self.trainers:
+                        for trainer in self.trainers:
                             self.set_weights(trainer.get_weights())
 
                 else:
@@ -72,9 +79,22 @@ class Policy(tf.keras.models.Model):
                         raise ValueError("Could not find optimizer with matching scope name")
 
                 for scope, grad_vars in gradvars.items():
+                    optimizer = self.optimizer[scope]
                     self.optimizer[scope].apply_gradients(zip(*grad_vars))
+
+                    # Metrics TODO?
+                    self.agent.metrics.add(self.alias + "/" + scope + "/learning-rate",
+                                     optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True)
+                    optimizer.lr = optimizer.lr - (optimizer.lr * optimizer.decay)
+
             else:
                 self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+
+                # Metrics TODO?
+                self.agent.metrics.add(self.alias + "/" + "optimizer" + "/learning-rate",
+                                 self.optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True)
+                self.optimizer.lr = self.optimizer.lr - (self.optimizer.lr * self.optimizer.decay)
+
 
 
 class PGPolicy(Policy):

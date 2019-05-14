@@ -14,10 +14,39 @@ from experiments.experiment_5.per_rl.utils.metrics import Metrics
 FLAGS = flags.FLAGS
 
 
+def DecoratedAgent(cls, **kwargs):
+    __init__ = cls.__init__
+
+    def wrapper(self, **kwargs):
+        # Copy default configuration. Update with arguments
+        defaults = cls.DEFAULTS.copy() # .update(kwargs)
+        defaults.update(kwargs)
+
+        if not hasattr(self, "args"):
+            setattr(self, "args", {})
+
+        # Extract required parameters for this agent class
+        args = dict()
+        for param in cls.PARAMETERS:
+
+            try:
+                args[param] = defaults[param]
+                #del defaults[param]  # todo?
+            except KeyError:
+                raise ValueError("The parameter '%s' is required for '%s' but was not found in the configuration." % (param, cls.__name__))
+
+        args.update(getattr(self, "args"))
+        setattr(self, "args", args)
+
+        __init__(self, **defaults)
+
+    cls.__init__ = wrapper
+    return cls
+
+
 class Agent:
     SUPPORTED_BATCH_MODES = ["episodic", "steps"]
     DEFAULTS = dict()
-    arguments = utils.arguments
 
     def __init__(self,
                  obs_space: gym.spaces.Box,
@@ -32,10 +61,8 @@ class Agent:
                  dtype=tf.float32,
                  tensorboard_enabled=False,
                  tensorboard_path="./tb/",
-                 name_prefix=None):
-
-        hyper_parameters = utils.get_defaults(self, Agent.arguments())
-
+                 name_prefix=None,
+                 **kwargs):
         self.name = self.__class__.__name__
 
         if tensorboard_enabled:
@@ -69,7 +96,7 @@ class Agent:
         self.losses = dict()
         self.operations = OrderedDict()
 
-        self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(hyper_parameters)))
+        self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self.args)))
 
         if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
@@ -156,7 +183,14 @@ class Agent:
     def _backprop(self, **kwargs):
         total_loss = 0
         losses = []
-        for policy_name, policy in self.policy.trainers:
+
+        # CREATE NEW POLICY CLASS
+        # one instance of MASTER
+        # many instances of SLAVES
+        # Now we can better control everything..
+
+        self.policy.trainers["tesst"] = self.policy
+        for k, policy in self.policy.trainers.items():
 
             """Run all loss functions"""
             with tf.GradientTape() as tape:
@@ -168,7 +202,7 @@ class Agent:
                     loss = loss_fn(**kwargs)
 
                     """Add metric for loss"""
-                    self.metrics.add(policy_name + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
+                    self.metrics.add(policy.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 
                     """Add to total loss"""
                     total_loss += loss
@@ -188,11 +222,6 @@ class Agent:
 
             """Backprop"""
             policy.optimize(grads)
-
-            """Record learning rate"""
-            for optimizer_name, optimizer in policy.optimizer.items():
-                self.metrics.add(policy_name + "/" + optimizer_name + "/learning-rate", optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True) # todo name
-                optimizer.lr = optimizer.lr - (optimizer.lr * optimizer.decay)
 
         self.policy.optimize(None)
         return np.asarray(losses)

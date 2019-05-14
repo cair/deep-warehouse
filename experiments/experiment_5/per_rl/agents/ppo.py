@@ -18,23 +18,18 @@
 from scipy.signal import lfilter
 import tensorflow as tf
 from experiments.experiment_5.per_rl.agents.a2c import A2C
-from experiments.experiment_5.per_rl.agents.agent import Agent
+from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 import numpy as np
 
+
+@DecoratedAgent
 class PPO(A2C):
+    PARAMETERS = ["gae_lambda", "epsilon", "kl_coef"]
     DEFAULTS = defaults.PPO
 
-    def __init__(self,
-                 gae_lambda=0.99,
-                 epsilon=0.3,
-                 kl_coef=0.2,
-                 **kwargs
-                 ):
-
-        super(PPO, self).__init__(**Agent.arguments())
-        self.epsilon = epsilon  # Clipping coefficient
-        self.gae_lambda = gae_lambda
+    def __init__(self, **kwargs):
+        super(PPO, self).__init__(**kwargs)
 
         self.add_operation("returns", self.generalized_advantage_estimation)
         self.add_operation("old_logits", self.old_logits)
@@ -77,13 +72,13 @@ class PPO(A2C):
         pg_losses = -advantage * l_cpi
 
         """Clipping the l_cpi according to paper."""
-        pg_losses_clipped = tf.clip_by_value(l_cpi, 1.0 - self.epsilon, 1.0 + self.epsilon) * -advantage
+        pg_losses_clipped = tf.clip_by_value(l_cpi, 1.0 - self.args["epsilon"], 1.0 + self.args["epsilon"]) * -advantage
 
         pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses_clipped))
 
         # Metrics
         approxkl = .5 * tf.reduce_mean(tf.square(neg_log_new - neg_log_old))
-        clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(l_cpi - 1.0), self.epsilon), dtype=tf.float64))
+        clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(l_cpi - 1.0), self.args["epsilon"]), dtype=tf.float64))
 
         self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
         self.metrics.add("clipfrac", clipfrac, ["mean"], "train", epoch=True)
@@ -100,7 +95,12 @@ class PPO(A2C):
         action_value_old = action_value
         terminal_new = np.concatenate((terminal[1:], [0]))
 
-        advantage = self.discount(reward + self.gamma * action_value_new * (1 - terminal_new) - action_value_old, self.gamma * self.gae_lambda)
+        advantage = self.discount(
+            reward +
+            self.args["gamma"] * action_value_new * (1 - terminal_new) -
+            action_value_old, self.args["gamma"] * self.args["gae_lambda"]
+        )
+
         td_lambda_return = advantage + action_value_old
         advantage = (advantage - advantage.mean()) / np.maximum(advantage.std(), 1e-6)
 
