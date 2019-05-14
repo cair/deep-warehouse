@@ -25,17 +25,17 @@ class Sum:
         self.total = 0
 
 
-class Mean(Sum):
+class Mean:
 
-    def __init__(self):
-        super().__init__()
-
+    def __init__(self, sum_at_reset=False):
+        self.data = []
         self.series = deque(maxlen=10)
         self.series_total = []
         self.op = np.mean
+        self.reset_op = np.sum if sum_at_reset else np.mean
 
     def __call__(self, v):
-        super().__call__(v)
+        self.data.append(v)
 
     def results(self, total=False):
 
@@ -44,13 +44,13 @@ class Mean(Sum):
         elif not total and len(self.series) > 0:
             return self.op(self.series)
         else:
-            return self.total
+            return self.op(self.data)
 
     def reset_states(self):
-
-        self.series.append(self.total)
-        self.series_total.append(self.total)
-        super().reset_states()
+        calc = self.reset_op(self.data)
+        self.series.append(calc)
+        self.series_total.append(calc)
+        self.data = []
 
 
 class Stddev(Mean):
@@ -81,7 +81,8 @@ class GenericMetric:
 
         self.data_types = dict(
             mean=Mean,
-            sum=Sum
+            sum=Sum,
+            sum_mean=lambda: Mean(sum_at_reset=True)
         )
 
         self.data = dict(
@@ -125,6 +126,7 @@ class Metrics:
     supported = {
         "mean": "Between last metric and current metric",
         "sum": "Sum of all collected data",
+        "sum_mean": "Sums then averages instead of mean of means.",
         "stddev": "Standard deviation between the collected data"
     }
 

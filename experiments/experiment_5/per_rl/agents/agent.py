@@ -134,8 +134,8 @@ class Agent:
         self.data.update(**kwargs)
 
         """Metrics update."""
-        self.metrics.add("steps", 1, ["sum", "mean"], None, episode=True, epoch=True, total=True)
-        self.metrics.add("reward", kwargs["reward"], ["sum", "mean"], None, episode=True, epoch=False, total=True)
+        self.metrics.add("steps", 1, ["sum", "sum_mean"], None, episode=True, epoch=True, total=True)
+        self.metrics.add("reward", kwargs["reward"], ["sum", "sum_mean"], None, episode=True, epoch=False, total=True)
 
         if kwargs["terminal"]:
             self.metrics.done(episode=True)
@@ -192,6 +192,7 @@ class Agent:
             """Record learning rate"""
             for optimizer_name, optimizer in policy.optimizer.items():
                 self.metrics.add(policy_name + "/" + optimizer_name + "/learning-rate", optimizer.lr.numpy(), ["mean"], "hyper-parameter", epoch=True) # todo name
+                optimizer.lr = optimizer.lr - (optimizer.lr * optimizer.decay)
 
         self.policy.optimize(None)
         return np.asarray(losses)

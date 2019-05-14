@@ -39,10 +39,10 @@ A2C = dict(
 
 PPO = dict(
     batch_mode="steps",
-    epochs=4,
-    batch_size=2048,  # 2048
+    epochs=1,
+    batch_size=64,  # 2048
     batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
-    mini_batches=256,  # 32
+    mini_batches=64,  # 32
     entropy_coef=0.0002,  # Entropy should be 0.0 for continous action spaces.  # TODO
     value_coef=0.5,
     gamma=0.99,
@@ -53,8 +53,8 @@ PPO = dict(
         agent=agent,
         dual=True,
         optimizer=dict(
-            policy=tf.keras.optimizers.Adam(lr=0.001, decay=0.000001),
-            value=tf.keras.optimizers.Adam(lr=0.001, decay=0.000001),
+            policy=tf.keras.optimizers.Adam(lr=5e-3, decay=1e-6),
+            value=tf.keras.optimizers.RMSprop(lr=5e-3, decay=1e-6),
         ),
         n_trainers=1,
         update=dict(
