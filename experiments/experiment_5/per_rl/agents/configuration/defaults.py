@@ -69,11 +69,10 @@ PPO = dict(
 
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        optimizer=tf.keras.optimizers.Adam(lr=0.0025),
-        #optimizer=dict(
-        #    policy=tf.keras.optimizers.Adam(lr=0.0025),
-        #    value=tf.keras.optimizers.Adam(lr=0.0025),
-        #)
+        optimizer=dict(
+            policy=tf.keras.optimizers.Adam(lr=0.0025),
+            value=tf.keras.optimizers.Adam(lr=0.0025),
+        )
     ),
     policy_update=dict(
         double=False,

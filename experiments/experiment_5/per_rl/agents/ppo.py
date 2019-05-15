@@ -25,7 +25,7 @@ import numpy as np
 
 @DecoratedAgent
 class PPO(A2C):
-    PARAMETERS = ["gae_lambda", "epsilon", "kl_coef"]
+    PARAMETERS = ["gae_lambda", "epsilon", "kl_coef", "value_coef"]
     DEFAULTS = defaults.PPO
 
     def __init__(self, **kwargs):
@@ -33,9 +33,8 @@ class PPO(A2C):
 
         self.add_operation("returns", self.generalized_advantage_estimation)
 
-    """
-    # Clip the value to reduce variability during Critic training
-        # Get the predicted value
+    def action_value_loss(self, old_action_value, action_value, returns, **kwargs):
+        """
         vpred = train_model.vf
         vpredclipped = OLDVPRED + tf.clip_by_value(train_model.vf - OLDVPRED, - CLIPRANGE, CLIPRANGE)
         # Unclipped value
@@ -43,17 +42,26 @@ class PPO(A2C):
         # Clipped value
         vf_losses2 = tf.square(vpredclipped - R)
 
-        vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))
-    """
+        vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))"""
 
-    #def action_value_loss(self, action_value, advantage, returns, **kwargs):
+        v_pred_clipped = old_action_value + tf.clip_by_value(
+            action_value - old_action_value,
+            -self.args["epsilon"], self.args["epsilon"]
+        )
+
+        vf_losses_1 = tf.square(action_value - returns)
+
+        vf_losses_2 = tf.square(v_pred_clipped - returns)
+
+        vf_loss = self.args["value_coef"] * tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
+
+        return vf_loss
+
 
     def policy_loss(self, old_logits, action, advantage, **kwargs):
         return self.clipped_surrogate_loss(old_logits, action, advantage, **kwargs)
 
     def clipped_surrogate_loss(self, old_logits, action, advantage, logits, **kwargs):
-
-
         neg_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(old_logits, 1e-7, 1)) * action, axis=1)
         neg_log_new = tf.reduce_sum(-tf.math.log(tf.clip_by_value(logits, 1e-7, 1)) * action, axis=1)
 
