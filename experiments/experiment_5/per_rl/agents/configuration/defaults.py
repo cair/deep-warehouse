@@ -11,12 +11,14 @@ REINFORCE = dict(
     batch_shuffle=False,
     policy=lambda agent: PGPolicy(
         agent=agent,
-        dual=False,
         optimizer=tf.keras.optimizers.Adam(lr=0.001),
-        update=dict(
-            interval=1,
-            strategy="copy"
-        )
+    ),
+    policy_update=dict(
+        double=True,
+        n_trainers=1,
+        interval=1,
+        strategy="copy",  # copy, mean
+        type="weights"  # weights, gradients
     )
 )
 
@@ -69,11 +71,12 @@ PPO = dict(
         optimizer=dict(
             policy=tf.keras.optimizers.Adam(lr=5e-3, decay=1e-6),
             value=tf.keras.optimizers.RMSprop(lr=5e-3, decay=1e-6),
-        ),
-        n_trainers=1,
-        update=dict(
-            interval=1,
-            strategy="copy"  # Or mean
         )
+    ),
+    policy_update=dict(
+        n_trainers=1,
+        interval=1,
+        strategy="copy",  # copy, mean
+        type="weights"  # weights, gradients
     )
 )

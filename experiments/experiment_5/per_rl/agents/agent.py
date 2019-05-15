@@ -8,6 +8,7 @@ import os
 import numpy as np
 
 from experiments.experiment_5.per_rl import utils
+from experiments.experiment_5.per_rl.agents.configuration.models import PolicyManager
 from experiments.experiment_5.per_rl.storage.batch_handler import DynamicBatch
 from experiments.experiment_5.per_rl.utils.metrics import Metrics
 
@@ -52,6 +53,7 @@ class Agent:
                  obs_space: gym.spaces.Box,
                  action_space: gym.spaces.Discrete,
                  policy,
+                 policy_update,
                  batch_shuffle=False,
                  batch_mode: str = "episodic",
                  mini_batches: int = 1,
@@ -85,7 +87,7 @@ class Agent:
         self.dtype = dtype
         self.grad_clipping = grad_clipping
         self.epochs = epochs
-        self.policy = policy(self)  # Initialize policy
+        self.policy = PolicyManager(policy(self), **policy_update)  # Initialize policy and pass to the policy manager.
 
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
@@ -181,49 +183,49 @@ class Agent:
             self.metrics.add("backprop", time.perf_counter() - train_start, ["mean"], "time", epoch=True)
 
     def _backprop(self, **kwargs):
+
         total_loss = 0
         losses = []
 
-        # CREATE NEW POLICY CLASS
-        # one instance of MASTER
-        # many instances of SLAVES
-        # Now we can better control everything..
-
-        self.policy.trainers["tesst"] = self.policy
-        for k, policy in self.policy.trainers.items():
+        for policy in self.policy.slaves:
 
             """Run all loss functions"""
             with tf.GradientTape() as tape:
 
-                pred = policy(**kwargs)
-                kwargs.update(pred)
+                # Do prediction using current slave policy, add this to the kwargs term.
+                kwargs.update(policy(**kwargs))
 
+                # Run all loss functions
                 for loss_name, loss_fn in self.losses.items():
+
+                    # Perform loss calculation
                     loss = loss_fn(**kwargs)
 
-                    """Add metric for loss"""
+                    # Add metric for current loss
                     self.metrics.add(policy.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 
-                    """Add to total loss"""
+                    # Accumulate losses
                     total_loss += loss
                     losses.append(loss)
 
-            """Calculate gradients"""
+            # Calculate the gradient of this backward pass.
             grads = tape.gradient(total_loss, policy.trainable_variables)
 
-            """Gradient Clipping"""
+            # Clip gradients if enabled.
             if self.grad_clipping is not None:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
+            # Save the calculated gradients inside the policy instance
+            policy.set_grads(grads)
+
             """Diagnostics"""
-            self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
-            self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["mean"],
-                             "gradients", epoch=True)
+            #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
+            #self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["mean"],
+            #                 "gradients", epoch=True)
 
-            """Backprop"""
-            policy.optimize(grads)
+        # Optimize all of the policies
+        self.policy.optimize()
 
-        self.policy.optimize(None)
         return np.asarray(losses)
 
     def train(self, **kwargs):
