@@ -34,14 +34,15 @@ A2C = dict(
     batch_shuffle=False,
     policy=lambda agent: A2CPolicy(
         agent=agent,
-        dual=True,
-        n_trainers=1,
         optimizer=tf.keras.optimizers.Adam(lr=0.001), # decay=0.99, epsilon=1e-5)
-        update=dict(
-            interval=5,  # Update every 5 training epochs,
-            strategy="copy",  # "copy, mean"
-        )
     ),
+    policy_update=dict(
+        double=True,
+        n_trainers=1,
+        interval=5,
+        strategy="copy",  # copy, mean
+        type="weights"  # weights, gradients
+    )
 
 )
 
@@ -67,13 +68,13 @@ PPO = dict(
 
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        dual=True,
         optimizer=dict(
             policy=tf.keras.optimizers.Adam(lr=5e-3, decay=1e-6),
             value=tf.keras.optimizers.RMSprop(lr=5e-3, decay=1e-6),
         )
     ),
     policy_update=dict(
+        double=True,
         n_trainers=1,
         interval=1,
         strategy="copy",  # copy, mean
