@@ -23,13 +23,13 @@ class A2C(REINFORCE):
         self.add_operation("advantage", self.advantage)
         self.add_loss("action_value_loss", self.action_value_loss)
 
-    def advantage(self, action_value, returns, obs1, policy, **kwargs):
+    def advantage(self, old_action_value, returns, obs1, policy, **kwargs):
         #V1 = policy(obs1)["action_value"] # (V1*self.gamma)
 
-        advantage = returns - tf.stop_gradient(action_value)
+        advantage = returns - tf.stop_gradient(old_action_value)
         self.metrics.add(
             "explained-variance",
-            utils.explained_variance(action_value, returns), ["mean"], "loss", epoch=True, total=True)
+            utils.explained_variance(old_action_value, returns), ["mean"], "loss", epoch=True, total=True)
 
         return advantage
 

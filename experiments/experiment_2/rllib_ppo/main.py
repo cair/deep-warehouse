@@ -28,8 +28,8 @@ try:
     from deep_logistics import SpawnStrategies
     from gym.spaces import Tuple, Discrete, Box
 
-    from deep_logistics_ml.experiment_2.rllib_ppo.reward_functions import Reward0
-    from deep_logistics_ml.experiment_2.rllib_ppo.state_representations import State0
+    from experiments.experiment_2.rllib_ppo.reward_functions import Reward0
+    from experiments.experiment_2.rllib_ppo.state_representations import State0
 except ImportError as e:
     print(e)
     install("gym")
@@ -57,8 +57,8 @@ class DeepLogisticsMultiEnv(MultiAgentEnv):
                                  taxi_agent=Agent,
                                  ups=None,
                                  graphics_render=graphics_render,
-                                 delivery_locations=delivery_locations,
-                                 spawn_strategy=SpawnStrategies.RandomSpawnStrategy
+                                 #delivery_locations=delivery_locations,
+                                 #spawn_strategy=SpawnStrategies.RandomSpawnStrategy
                                  )
         self.state_representation = state(self.env)
         self.reward_function = reward

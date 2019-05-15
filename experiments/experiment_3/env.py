@@ -8,8 +8,8 @@ from deep_logistics import spawn_strategy
 import os
 import numpy as np
 
-from deep_logistics_ml.experiment_3.reward_functions import Reward0
-from deep_logistics_ml.experiment_3.state_representations import State0
+from experiments.experiment_3.reward_functions import Reward0
+from experiments.experiment_3.state_representations import State0
 
 
 class BaseDeepLogisticsMultiEnv(MultiAgentEnv):

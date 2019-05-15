@@ -32,12 +32,6 @@ class PPO(A2C):
         super(PPO, self).__init__(**kwargs)
 
         self.add_operation("returns", self.generalized_advantage_estimation)
-        self.add_operation("old_logits", self.old_logits)
-
-    def old_logits(self, inputs, **kwargs):
-
-        pi_old = self.policy(inputs)
-        return pi_old["logits"]
 
     """
     # Clip the value to reduce variability during Critic training
@@ -54,13 +48,11 @@ class PPO(A2C):
 
     #def action_value_loss(self, action_value, advantage, returns, **kwargs):
 
+    def policy_loss(self, old_logits, action, advantage, **kwargs):
+        return self.clipped_surrogate_loss(old_logits, action, advantage, **kwargs)
 
+    def clipped_surrogate_loss(self, old_logits, action, advantage, logits, **kwargs):
 
-
-    def policy_loss(self, logits, action, advantage, **kwargs):
-        return self.clipped_surrogate_loss(logits, action, advantage, **kwargs)
-
-    def clipped_surrogate_loss(self, logits, action, advantage, old_logits, **kwargs):
 
         neg_log_old = tf.reduce_sum(-tf.math.log(tf.clip_by_value(old_logits, 1e-7, 1)) * action, axis=1)
         neg_log_new = tf.reduce_sum(-tf.math.log(tf.clip_by_value(logits, 1e-7, 1)) * action, axis=1)
@@ -88,11 +80,11 @@ class PPO(A2C):
     def discount(self, x, gamma):
         return lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
-    def generalized_advantage_estimation(self, policy, obs1, action_value, terminal, reward, **kwargs):
+    def generalized_advantage_estimation(self, policy, obs1, old_action_value, terminal, reward, **kwargs):
         # TODO - Use action_value or append obs1 vpred?
 
-        action_value_new = np.concatenate((action_value[1:], [policy(obs1[-1:])["action_value"]]))
-        action_value_old = action_value
+        action_value_new = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
+        action_value_old = old_action_value
         terminal_new = np.concatenate((terminal[1:], [0]))
 
         advantage = self.discount(

@@ -17,7 +17,8 @@ FLAGS = flags.FLAGS
 from ray import tune
 from ray.rllib.agents import ppo, impala
 from ray.rllib.agents.ppo.ppo_policy_graph import PPOPolicyGraph
-from deep_logistics_ml.experiment_3.env import DeepLogisticsMultiEnv1
+
+from experiments.experiment_3.env import DeepLogisticsMultiEnv1
 
 
 def install_dependencies():

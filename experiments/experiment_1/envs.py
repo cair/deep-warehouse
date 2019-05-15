@@ -20,6 +20,7 @@ class Statistics:
         self.deliveries_before_crash = 1
         self.pickups_before_crash = 1
 
+
 class DeepLogisticBase(MultiAgentEnv):
 
     def __init__(self, height, width, ai_count, agent_count, agent, ups, delivery_points, state, render_screen=False):

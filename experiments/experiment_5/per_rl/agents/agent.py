@@ -141,7 +141,9 @@ class Agent:
         self.data["inputs"] = inputs
 
         pred = self.policy(inputs)
-        self.data.update(pred)
+        self.data.update({
+            "old_%s" % k: v for k, v in pred.items()
+        })
 
         return pred
 
@@ -186,7 +188,6 @@ class Agent:
 
         total_loss = 0
         losses = []
-
         for policy in self.policy.slaves:
 
             """Run all loss functions"""
@@ -249,8 +250,7 @@ class Agent:
         # Calculate mini-batch size
         for epoch in range(self.epochs):
 
-
-            # Shuffle the batch indices
+            #  Shuffle the batch indices
             if self.batch_shuffle:
                 np.random.shuffle(batch_indices)
 

@@ -47,17 +47,18 @@ A2C = dict(
 )
 
 PPO = dict(
-    batch_mode="steps",
-    gae_lambda=0.95,  # Lambda in General Advantange Estimation
+
+    gae_lambda=1.0,  # Lambda in General Advantange Estimation
     epsilon=0.2,  # Clipping factor
     kl_coef=0.2,  # TODO
-    entropy_coef=0.0002,  # Entropy should be 0.0 for continous action spaces.  # TODO
+    entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
     value_coef=0.5,
     gamma=0.99,
 
-    batch_size=64,  # 2048
-    mini_batches=64,  # 32
-    epochs=1,  # TODO
+    batch_mode="steps",
+    batch_size=200,  # 2048
+    mini_batches=4,  # 32
+    epochs=10,
     batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
 
     value_loss="mse",  # TODO
@@ -68,13 +69,14 @@ PPO = dict(
 
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        optimizer=dict(
-            policy=tf.keras.optimizers.Adam(lr=5e-3, decay=1e-6),
-            value=tf.keras.optimizers.RMSprop(lr=5e-3, decay=1e-6),
-        )
+        optimizer=tf.keras.optimizers.Adam(lr=0.0025),
+        #optimizer=dict(
+        #    policy=tf.keras.optimizers.Adam(lr=0.0025),
+        #    value=tf.keras.optimizers.Adam(lr=0.0025),
+        #)
     ),
     policy_update=dict(
-        double=True,
+        double=False,
         n_trainers=1,
         interval=1,
         strategy="copy",  # copy, mean
