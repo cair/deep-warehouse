@@ -114,7 +114,15 @@ class Agent:
 
         self.obs = None  # Last seen observation
 
+
+    def clear_operations(self):
+        self.operations.clear()
+
+
     def add_operation(self, name, fn):
+        if name in self.operations:
+            del self.operations[name]
+
         self.operations[name] = fn
 
     def remove_calculation(self, name):

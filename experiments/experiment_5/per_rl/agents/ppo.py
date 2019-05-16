@@ -22,6 +22,8 @@ from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 import numpy as np
 
+from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
+
 
 @DecoratedAgent
 class PPO(A2C):
@@ -31,7 +33,9 @@ class PPO(A2C):
     def __init__(self, **kwargs):
         super(PPO, self).__init__(**kwargs)
 
-        self.add_operation("returns", self.generalized_advantage_estimation)
+        self.clear_operations()
+        self.add_operation("advantage", self.generalized_advantage_estimation)
+
 
     def action_value_loss(self, old_action_value, action_value, returns, **kwargs):
         """
@@ -89,19 +93,19 @@ class PPO(A2C):
         return lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
     def generalized_advantage_estimation(self, policy, obs1, old_action_value, terminal, reward, **kwargs):
-        # TODO - Use action_value or append obs1 vpred?
 
-        action_value_new = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
-        action_value_old = old_action_value
-        terminal_new = np.concatenate((terminal[1:], [0]))
+        # Predict the v_next (Aka the value from the last observation before batch was complete.
+        V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
+        V = old_action_value
+        T_1 = np.concatenate((terminal[1:], [0]))
 
         advantage = self.discount(
             reward +
-            self.args["gamma"] * action_value_new * (1 - terminal_new) -
-            action_value_old, self.args["gamma"] * self.args["gae_lambda"]
+            self.args["gamma"] * V_1 * (1 - T_1) -
+            V, self.args["gamma"] * self.args["gae_lambda"]
         )
 
-        td_lambda_return = advantage + action_value_old
+        td_lambda_return = advantage + V
         advantage = (advantage - advantage.mean()) / np.maximum(advantage.std(), 1e-6)
 
         return dict(
