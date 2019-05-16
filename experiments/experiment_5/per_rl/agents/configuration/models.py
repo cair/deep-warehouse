@@ -273,23 +273,50 @@ class PPOPolicy(Policy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.p_1 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.p_2 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.p_3 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.p_4 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.logits = tf.keras.layers.Dense(self.agent.action_space, activation="softmax", name='policy_logits')
+        self.p_1 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.p_2 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.p_3 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.p_4 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.logits = tf.keras.layers.Dense(self.agent.action_space,
+                                            activation="linear",
+                                            name='policy_logits'
+                                            )
 
-        self.v_1 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.v_2 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.v_3 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
-        self.v_4 = tf.keras.layers.Dense(32, activation="tanh", dtype=self.agent.dtype)
+        self.v_1 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.v_2 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.v_3 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
+        self.v_4 = tf.keras.layers.Dense(32, activation="relu", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1,
                                                   activation="linear",
                                                   name="action_value",
                                                   dtype=self.agent.dtype
                                                   )
 
+
     def call(self, inputs, **kwargs):
+
+
+        p = self.p_1(inputs)
+        p = self.p_2(p)
+        p = self.p_3(p)
+        p = self.p_4(p)
+
+
+        v = self.v_1(p)
+        #v = self.v_2(v)
+        #v = self.v_3(v)
+        #v = self.v_4(v)
+
+        action_value = self.action_value(v)
+        policy_logits = self.logits(p)
+
+        return {
+            "logits": policy_logits,
+            "action_value": tf.squeeze(action_value)
+        }
+
+
+    def old_cal_(self, inputs, **kwargs):
 
         # Policy Head
         with tf.name_scope("policy"):

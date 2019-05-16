@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from experiments.experiment_5.per_rl.agents.configuration.models import PGPolicy, A2CPolicy, PPOPolicy
-
+# https://mpi4py.readthedocs.io/en/stable/
 REINFORCE = dict(
     batch_mode="episodic",
     batch_size=32,
@@ -48,11 +48,11 @@ A2C = dict(
 
 PPO = dict(
 
-    gae_lambda=1.0,  # Lambda in General Advantange Estimation
-    epsilon=0.2,  # Clipping factor
+    gae_lambda=0.95,  # Lambda in General Advantange Estimation
+    epsilon=0.3,  # Clipping factor
     kl_coef=0.2,  # TODO
     entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
-    value_coef=0.5,
+    value_coef=0.1,
     gamma=0.99,
 
     batch_mode="steps",
@@ -69,13 +69,14 @@ PPO = dict(
 
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        optimizer=dict(
-            policy=tf.keras.optimizers.Adam(lr=0.0025),
-            value=tf.keras.optimizers.Adam(lr=0.0025),
-        )
+        #optimizer=dict(
+        #    policy=tf.keras.optimizers.Adam(lr=0.00025),
+        #    value=tf.keras.optimizers.Adam(lr=0.00025),
+        #)
+        optimizer=tf.keras.optimizers.Adam(lr=0.0025)
     ),
     policy_update=dict(
-        double=False,
+        double=True,
         n_trainers=1,
         interval=1,
         strategy="copy",  # copy, mean

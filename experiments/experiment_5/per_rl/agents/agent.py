@@ -96,7 +96,7 @@ class Agent:
         self.metrics = Metrics(self)
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
         self.losses = dict()
-        self.operations = OrderedDict()
+        self.preprocessors = OrderedDict()
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self.args)))
 
@@ -114,19 +114,17 @@ class Agent:
 
         self.obs = None  # Last seen observation
 
-
-    def clear_operations(self):
+    def clear_preprocessors(self):
         self.operations.clear()
 
+    def add_preprocessor(self, name, fn):
+        if name in self.preprocessors:
+            del self.preprocessors[name]
 
-    def add_operation(self, name, fn):
-        if name in self.operations:
-            del self.operations[name]
+        self.preprocessors[name] = fn
 
-        self.operations[name] = fn
-
-    def remove_calculation(self, name):
-        del self.operations[name]
+    def remove_preprocessor(self, name):
+        del self.preprocessors[name]
 
     def add_loss(self, name, lambda_fn, tb_text=None):
         self.losses[name] = lambda_fn
@@ -196,13 +194,13 @@ class Agent:
 
         total_loss = 0
         losses = []
-        for policy in self.policy.slaves:
+        for policy_train in self.policy.slaves:
 
             """Run all loss functions"""
             with tf.GradientTape() as tape:
 
                 # Do prediction using current slave policy, add this to the kwargs term.
-                kwargs.update(policy(**kwargs))
+                kwargs.update(policy_train(**kwargs))
 
                 # Run all loss functions
                 for loss_name, loss_fn in self.losses.items():
@@ -211,21 +209,21 @@ class Agent:
                     loss = loss_fn(**kwargs)
 
                     # Add metric for current loss
-                    self.metrics.add(policy.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
+                    self.metrics.add(policy_train.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 
                     # Accumulate losses
                     total_loss += loss
                     losses.append(loss)
 
             # Calculate the gradient of this backward pass.
-            grads = tape.gradient(total_loss, policy.trainable_variables)
+            grads = tape.gradient(total_loss, policy_train.trainable_variables)
 
             # Clip gradients if enabled.
             if self.grad_clipping is not None:
                 grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
 
             # Save the calculated gradients inside the policy instance
-            policy.set_grads(grads)
+            policy_train.set_grads(grads)
 
             """Diagnostics"""
             #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
@@ -237,32 +235,46 @@ class Agent:
 
         return np.asarray(losses)
 
-    def train(self, **kwargs):
+    def _preprocessing(self, batch, **kwargs):
 
+        # Preprocessing of data prior to training
+        for preprocess_name, preprocess_fn in self.preprocessors.items():
+            preprocess_res = preprocess_fn(**batch, **kwargs)
+
+            if isinstance(preprocess_res, dict):
+                batch.update(preprocess_res)
+            else:
+                batch[preprocess_name] = preprocess_res
+
+    def train(self, **kwargs):
+        """
+
+        :param kwargs: Kwargs is used throughout the training process.
+        During preprocessing the kwargs is filled with new data, typically advantages... etc
+        :return:
+        """
+        # Save policy into the kwargs dictionary for use in preprocessing etc.
         kwargs["policy"] = self.policy
 
-        # Retrieve batch of data
+        # Retrieve batch
         batch = self.batch.get()
 
-        # Perform calculations prior to training
-        for opname, operation in self.operations.items():
-            return_op = operation(**batch, **kwargs)
+        # Preprocess the data
+        self._preprocessing(batch, **kwargs)
 
-            if isinstance(return_op, dict):
-                for k, v in return_op.items():
-                    batch[k] = v
-            else:
-                batch[opname] = return_op
+        # Retrieve batch indices for this batch
+        batch_indices = np.arange(self.batch.counter)
 
-        batch_indices = np.arange(self.batch.counter)  # We use counter because episodic wil vary in bsize.
-        # Calculate mini-batch size
+        # Run number of epochs on the batch
         for epoch in range(self.epochs):
 
-            #  Shuffle the batch indices
+            #  Shuffle the batch indices if set
             if self.batch_shuffle:
                 np.random.shuffle(batch_indices)
 
+            # Iterate over mini-batches
             for i in range(0, self.batch.counter, self.batch.mbsize):
+
                 # Sample indices for the mini-batch
                 mb_indexes = batch_indices[i:i + self.batch.mbsize]
 
