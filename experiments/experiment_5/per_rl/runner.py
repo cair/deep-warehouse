@@ -1,5 +1,7 @@
 from absl import flags, app
 
+from deep_logistics.action_space import ActionSpace
+from deep_logistics.agent import ManhattanAgent
 from experiments.experiment_5.environment import Environment
 
 from experiments.experiment_5.per_rl.agents.a2c import A2C
@@ -22,7 +24,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # MY NOTES: https://hastebin.com/usasisifuw
 def main(argv):
     benchmark = False
-    episodes = 130
+    episodes = 13000000
     env_name = "CartPole-v0"
     #env_name = "deep-logistics-normal-v0"
 
@@ -30,11 +32,26 @@ def main(argv):
         AGENT, spec, episodes = args
         agent = AGENT(**spec)
 
+        # Number of epochs to do "supervised" learning (knowledge injection)
+        curriculum_epochs = 5
+
         env = Environment(env_name)
 
+        # Control set for manhattan distance
+        manhattan_control = ManhattanAgent.automate
+        is_deep_logisitcs =  "deep-logistics" in env_name
+
         while env.episode < episodes:
+
             action = agent.predict(env.state)
+
+            if agent.epoch < curriculum_epochs and is_deep_logisitcs:
+                action = manhattan_control(env.env.agent, perform_action=False)
+                agent.data["action"] = tf.one_hot(action, agent.action_space)
+
             state1, reward, terminal = env.step(action)
+            if reward >= 0.6 and is_deep_logisitcs:
+                terminal = True
 
             agent.observe(
                 obs1=state1,
@@ -42,25 +59,16 @@ def main(argv):
                 terminal=terminal
             )
 
-
     env = gym.make(env_name)
 
-    print(env.observation_space, env.action_space.n)
-
     if not benchmark:
-        """submit((REINFORCE, dict(
-            obs_space=env.observation_space,
-            action_space=env.action_space.n,
-            batch_mode="episodic",
-            batch_size=64,
-            tensorboard_enabled=True,
-            tensorboard_path="./tb/"
-        ), episodes))"""
         submit((PPO, dict(
             obs_space=env.observation_space,
             action_space=env.action_space.n,
             tensorboard_enabled=True,
-            baseline="reward_mean"
+            baseline="reward_mean",
+            batch_size=200,  # 2048
+            mini_batches=4,  # 32
         ), episodes))
     else:
         agents = [

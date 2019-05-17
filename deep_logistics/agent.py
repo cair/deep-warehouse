@@ -263,8 +263,8 @@ class ManhattanAgent(Agent):
     def __init__(self, env):
         super().__init__(env)
 
-    def automate(self):
-
+    def automate(self, perform_action=True):
+        action = ActionSpace.NOOP
         if self.task:
             # +dY = Above
             # -dY = Below
@@ -280,14 +280,18 @@ class ManhattanAgent(Agent):
 
             if not is_aligned_x:
                 if d_x > 0:
-                    self.do_action(ActionSpace.LEFT)
+                    action = ActionSpace.LEFT
                 else:
-                    self.do_action(ActionSpace.RIGHT)
+                    action = ActionSpace.RIGHT
             elif not is_aligned_y:
                 if d_y > 0:
-                    self.do_action(ActionSpace.UP)
+                    action = ActionSpace.UP
                 else:
-                    self.do_action(ActionSpace.DOWN)
+                    action = ActionSpace.DOWN
 
+        if perform_action:
+            self.do_action(action)
+
+        return action
             #print("x=%s | y=%s | dX=%s | dY=%s | Thrust=%s | alignment_x=%s | alignment_y=%s" %
             #      (self.cell.x, self.cell.y, d_x, d_y, self.action_intensity, is_aligned_x, is_aligned_y))

@@ -113,9 +113,10 @@ class Agent:
         )
 
         self.obs = None  # Last seen observation
+        self.epoch = 0
 
     def clear_preprocessors(self):
-        self.operations.clear()
+        self.preprocessors.clear()
 
     def add_preprocessor(self, name, fn):
         if name in self.preprocessors:
@@ -287,4 +288,5 @@ class Agent:
         self.metrics.done(epoch=True)
 
         self.batch.done()
+        self.epoch += 1
         return losses

@@ -48,26 +48,37 @@ A2C = dict(
 
 PPO = dict(
 
-    gae_lambda=0.95,  # Lambda in General Advantange Estimation
-    gae=False,  # Generalized Advantage Estimation # TODO not working properly?
-    epsilon=0.2,  # Clipping factor
-    kl_coef=0.2,  # TODO
-    entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
-    value_coef=0.5,
+    # Generalized Advantage Function # TODO
+    gae=False,  #
+    gae_lambda=1.0,
+
+    # Returns
     gamma=0.99,
 
+    # Policy coefficients
+    epsilon=0.3,  # Policy clipping factor
+    kl_coef=0.2,  # TODO
+    kl_target=0.01,  # TODO
+    entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
+
+    # Value coefficients
+    vf_loss="mse",  # TODO
+    vf_clipping=True,   # TODO not working properly?
+    vf_clip_param=10.0,  # TODO
+    vf_coeff=1.0,
+
+
+    # Sampling and Training
     batch_mode="steps",
-    batch_size=600,  # 2048
-    mini_batches=4,  # 32
+    batch_shuffle=True,
+    batch_size=128,  # 2048
+    mini_batches=128/32,
     epochs=10,
-    batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
 
-    value_loss="mse",  # TODO
-    value_loss_clipping=False,   # TODO not working properly?
-    grad_clipping=None,
+    # Optimization
+    grad_clipping=5,
 
-    #baseline=None,
-
+    # Policy definition
     policy=lambda agent: PPOPolicy(
         agent=agent,
         #optimizer=dict(
@@ -76,11 +87,13 @@ PPO = dict(
         #)
         optimizer=tf.keras.optimizers.Adam(lr=0.0007)
     ),
+
+    # Policy update settings
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=5,
-        strategy="copy",  # copy, mean
-        type="weights"  # weights, gradients
+        interval=1,
+        strategy="copy",  # copy, mean  # TODO wierd
+        type="weights"  # weights, gradients  # TODO wierd
     )
 )

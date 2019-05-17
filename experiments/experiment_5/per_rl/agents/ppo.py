@@ -22,6 +22,8 @@ from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 import numpy as np
 
+# https://learningai.io/projects/2017/07/28/ai-gym-workout.html
+
 # PRUNING - NOT DONE IN LITERATURE!
 # https://medium.com/tensorflow/tensorflow-model-optimization-toolkit-pruning-api-42cac9157a6a?fbclid=IwAR0szRFNxYr7c7o9-UK0t8hhs7Tr4pcjjs1bvUsksQvyJLH61U7-7n7tBFs
 
@@ -35,8 +37,9 @@ class PPO(Agent):
         "gae",
         "epsilon",
         "kl_coef",
-        "value_coef",
-        "value_loss_clipping",
+        "vf_coeff",
+        "vf_clipping",
+        "vf_clip_param",
         "gamma",
         "entropy_coef"
     ]
@@ -60,21 +63,21 @@ class PPO(Agent):
 
     def value_loss(self, old_action_value, action_value, returns, **kwargs):
 
-        if self.args["value_loss_clipping"]:
+        if self.args["vf_clipping"]:
             v_pred_clipped = \
                 old_action_value + tf.clip_by_value(
                     action_value - old_action_value,
-                    -self.args["epsilon"],
-                    self.args["epsilon"]
+                    -self.args["vf_clip_param"],
+                    self.args["vf_clip_param"]
                 )
 
             vf_losses_1 = tf.square(action_value - returns)
             vf_losses_2 = tf.square(v_pred_clipped - returns)
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
-            return self.args["value_coef"] * vf_loss
+            return self.args["vf_coeff"] * vf_loss
         else:
-            return tf.losses.mean_squared_error(returns, action_value) * self.args["value_coef"]
+            return tf.losses.mean_squared_error(returns, action_value) * self.args["vf_coeff"]
 
     def policy_loss(self, logits, old_logits, action, advantage, **kwargs):
 
@@ -85,6 +88,14 @@ class PPO(Agent):
 
         surr1 = ratios * advantage
         surr2 = tf.clip_by_value(ratios, 1.0 - self.args["epsilon"], 1.0 + self.args["epsilon"])
+
+        # Metrics
+        approxkl = .5 * tf.reduce_mean(tf.square(neglogpac_new - neglogpac_old))
+        clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(ratios - 1.0), self.args["epsilon"]), dtype=tf.float64))
+
+        self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
+        self.metrics.add("clipfrac", clipfrac, ["mean"], "train", epoch=True)
+
 
         return -tf.reduce_mean(tf.minimum(surr1, surr2))
 
@@ -99,7 +110,7 @@ class PPO(Agent):
         return lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
     def generalized_advantage_estimation(self, old_action_value, policy, obs1, reward, terminal, **kwargs):
-        V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
+        """V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
         V = old_action_value
         T_1 = np.concatenate((terminal[1:], [0]))
 
@@ -115,8 +126,9 @@ class PPO(Agent):
         return dict(
             returns=np.asarray(td_lambda_return),
             advantage=np.asarray(advantage)
-        )
-        """last_gae = 0
+        )"""
+
+        last_gae = 0
         adv = np.zeros_like(reward)
         ret = np.zeros_like(reward)
 
@@ -135,14 +147,13 @@ class PPO(Agent):
             ret[i] = last_gae + V[i]
 
         adv = (adv - adv.std()) / adv.mean()
-        np.nan_to_num(adv, copy=False)
 
         return dict(
             advantage=adv,
             returns=ret
-        )"""
+        )
 
-    def discounted_returns(self, reward, terminal, old_action_value, **kwargs):
+    def discounted_returns(self, reward, terminal, **kwargs):
         discounted_rewards = np.zeros_like(reward)
         cum_r = 0
         for i in reversed(range(0, self.batch.counter)):
