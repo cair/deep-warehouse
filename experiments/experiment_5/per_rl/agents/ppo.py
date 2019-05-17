@@ -27,6 +27,7 @@ import numpy as np
 # PRUNING - NOT DONE IN LITERATURE!
 # https://medium.com/tensorflow/tensorflow-model-optimization-toolkit-pruning-api-42cac9157a6a?fbclid=IwAR0szRFNxYr7c7o9-UK0t8hhs7Tr4pcjjs1bvUsksQvyJLH61U7-7n7tBFs
 
+# https://cs.uwaterloo.ca/~ppoupart/teaching/cs885-spring18/slides/cs885-lecture15b.pdf
 from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 
 
@@ -153,18 +154,21 @@ class PPO(Agent):
             returns=ret
         )
 
-    def discounted_returns(self, reward, terminal, **kwargs):
+    def discounted_returns(self, reward, terminal, old_action_value, **kwargs):
         discounted_rewards = np.zeros_like(reward)
+        advantage = np.zeros_like(reward)
         cum_r = 0
         for i in reversed(range(0, self.batch.counter)):
-            cum_r = reward[i] + (cum_r * self.args["gamma"] * (1 - terminal[i]))
+            cum_r = reward[i] + cum_r * self.args["gamma"] * (1 - terminal[i])
 
             discounted_rewards[i] = cum_r
+            advantage[i] = cum_r - old_action_value[i]
 
         discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()
-        np.nan_to_num(discounted_rewards, copy=False)
+        advantage = (advantage - advantage.std()) / advantage.mean()
+
         return dict(
-            advantage=discounted_rewards,  # TODO is this really optimal ???
+            advantage=advantage,
             returns=discounted_rewards
         )
 
@@ -173,3 +177,4 @@ class PPO(Agent):
             return self.generalized_advantage_estimation(**kwargs)
         else:
             return self.discounted_returns(**kwargs)
+

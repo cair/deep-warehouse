@@ -50,7 +50,7 @@ PPO = dict(
 
     # Generalized Advantage Function # TODO
     gae=False,  #
-    gae_lambda=1.0,
+    gae_lambda=0.95,
 
     # Returns
     gamma=0.99,
@@ -64,15 +64,15 @@ PPO = dict(
     # Value coefficients
     vf_loss="mse",  # TODO
     vf_clipping=True,   # TODO not working properly?
-    vf_clip_param=10.0,  # TODO
+    vf_clip_param=10.0,
     vf_coeff=1.0,
 
 
     # Sampling and Training
     batch_mode="steps",
     batch_shuffle=True,
-    batch_size=128,  # 2048
-    mini_batches=128/32,
+    batch_size=256,  # 2048
+    mini_batches=256/32,
     epochs=10,
 
     # Optimization
@@ -92,7 +92,7 @@ PPO = dict(
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=1,
+        interval=5,
         strategy="copy",  # copy, mean  # TODO wierd
         type="weights"  # weights, gradients  # TODO wierd
     )
