@@ -7,6 +7,7 @@ import warnings
 warnings.simplefilter('ignore')
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class Model(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
         super(Model, self).__init__()
@@ -108,11 +109,15 @@ class PPO:
 
             # Finding the ratio (pi_theta / pi_theta__old):
             logprobs = self.policy.logprobs[0].to(device)
+
+
             ratios = torch.exp(logprobs - old_logprobs.detach())
 
             # Finding Surrogate Loss:
             state_values = self.policy.state_values[0].to(device)
+            print(state_values)
             advantages = rewards - state_values.detach()
+
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
 

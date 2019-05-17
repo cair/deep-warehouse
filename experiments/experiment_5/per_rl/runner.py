@@ -22,7 +22,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # MY NOTES: https://hastebin.com/usasisifuw
 def main(argv):
     benchmark = False
-    episodes = 100000
+    episodes = 130
     env_name = "CartPole-v0"
     #env_name = "deep-logistics-normal-v0"
 

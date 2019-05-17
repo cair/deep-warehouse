@@ -22,123 +22,84 @@ from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 import numpy as np
 
+# PRUNING - NOT DONE IN LITERATURE!
+# https://medium.com/tensorflow/tensorflow-model-optimization-toolkit-pruning-api-42cac9157a6a?fbclid=IwAR0szRFNxYr7c7o9-UK0t8hhs7Tr4pcjjs1bvUsksQvyJLH61U7-7n7tBFs
+
 from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 
 
 @DecoratedAgent
 class PPO(Agent):
-    PARAMETERS = ["gae_lambda", "epsilon", "kl_coef", "value_coef", "gamma"]
+    PARAMETERS = [
+        "gae_lambda",
+        "gae",
+        "epsilon",
+        "kl_coef",
+        "value_coef",
+        "value_loss_clipping",
+        "gamma",
+        "entropy_coef"
+    ]
     DEFAULTS = defaults.PPO
 
     def __init__(self, **kwargs):
         super(PPO, self).__init__(**kwargs)
 
-        self.add_preprocessor("returns", self.generalized_advantage_estimation)
+        self.add_preprocessor("advantage", self.advantage)
 
-        self.add_loss("policy_loss", self.clipped_surrogate_loss, "Policy loss of PPO")
-        self.add_loss("value_loss", self.action_value_loss, "Action loss of PPO")
-
+        self.add_loss("policy_loss", self.policy_loss, "Policy loss of PPO")
+        self.add_loss("value_loss", self.value_loss, "Action loss of PPO")
+        self.add_loss("entropy_loss", self.entropy_loss, "Action loss of PPO")
     # TODO make a way to adopt this from other classes i.e reinforce.
+
     def _predict(self, inputs):
         pred = super()._predict(inputs)
         action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
         self.data["action"] = tf.one_hot(action, self.action_space)
         return action.numpy()
 
-    def action_value_loss(self, old_action_value, action_value, returns, **kwargs):
-        """
-        vpred = train_model.vf
-        vpredclipped = OLDVPRED + tf.clip_by_value(train_model.vf - OLDVPRED, - CLIPRANGE, CLIPRANGE)
-        # Unclipped value
-        vf_losses1 = tf.square(vpred - R)
-        # Clipped value
-        vf_losses2 = tf.square(vpredclipped - R)
+    def value_loss(self, old_action_value, action_value, returns, **kwargs):
 
-        vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))"""
+        if self.args["value_loss_clipping"]:
+            v_pred_clipped = \
+                old_action_value + tf.clip_by_value(
+                    action_value - old_action_value,
+                    -self.args["epsilon"],
+                    self.args["epsilon"]
+                )
 
-        v_pred_clipped = old_action_value + tf.clip_by_value(
-            action_value - old_action_value,
-            -self.args["epsilon"], self.args["epsilon"]
-        )
+            vf_losses_1 = tf.square(action_value - returns)
+            vf_losses_2 = tf.square(v_pred_clipped - returns)
+            vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
-        vf_losses_1 = tf.square(action_value - returns)
+            return self.args["value_coef"] * vf_loss
+        else:
+            return tf.losses.mean_squared_error(returns, action_value) * self.args["value_coef"]
 
-        vf_losses_2 = tf.square(v_pred_clipped - returns)
+    def policy_loss(self, logits, old_logits, action, advantage, **kwargs):
 
-        vf_loss = self.args["value_coef"] * tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
+        neglogpac_old = tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * action, axis=1)
+        neglogpac_new = tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * action, axis=1)
 
-        return vf_loss
+        ratios = tf.exp(neglogpac_new - tf.stop_gradient(neglogpac_old))
 
-        # return tf.losses.mean_squared_error(old_action_value, action_value) # what.. this works?
-        #return tf.losses.mean_squared_error(returns, action_value) * self.args["value_coef"]
+        surr1 = ratios * advantage
+        surr2 = tf.clip_by_value(ratios, 1.0 - self.args["epsilon"], 1.0 + self.args["epsilon"])
 
+        return -tf.reduce_mean(tf.minimum(surr1, surr2))
 
+    def entropy_loss(self, logits, **kwargs):
+        #entropy_loss = -tf.reduce_mean(tf.losses.categorical_crossentropy(logits, logits, from_logits=True) * self.entropy_coef)
 
-    def clipped_surrogate_loss(self, old_logits, action, old_action_value, advantage, logits, **kwargs):
-        neglogp_old = tf.losses.categorical_crossentropy(action, old_logits)
-        neglogp_new = tf.losses.categorical_crossentropy(action, logits)
-
-        "Conservative Policy Iteration with multiplied advantages"
-        l_cpi = tf.exp(neglogp_old - neglogp_new)
-
-        # Ratio loss with neg advantages
-        pg_losses = -advantage * l_cpi
-
-        """Clipping the l_cpi according to paper."""
-        pg_losses_clipped = -advantage * tf.clip_by_value(l_cpi, 1.0 - self.args["epsilon"], 1.0 + self.args["epsilon"])
-
-        pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses_clipped))
-
-        # Metrics
-        approxkl = .5 * tf.reduce_mean(tf.square(neglogp_new - neglogp_old))
-        clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(l_cpi - 1.0), self.args["epsilon"]), dtype=tf.float64))
-
-        self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
-        self.metrics.add("clipfrac", clipfrac, ["mean"], "train", epoch=True)
-
-        return -pg_loss
+        log_prob = tf.math.softmax(logits)
+        entropy = self.args["entropy_coef"] * tf.reduce_mean(tf.reduce_sum(log_prob * tf.math.log(log_prob), axis=1))
+        return -entropy
 
     def discount(self, x, gamma):
         return lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
-    def generalized_advantage_estimation(self, policy, obs1, old_action_value, terminal, reward, **kwargs):
-
-        last_gae = 0.0
-        result_adv = []
-        result_ref = []
-
-        V = old_action_value
+    def generalized_advantage_estimation(self, old_action_value, policy, obs1, reward, terminal, **kwargs):
         V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
-
-        for i in reversed(range(self.batch.counter)):
-            if terminal[i]:
-                delta = reward[i] - V[i]
-                last_gae = delta
-            else:
-                delta = reward[i] + self.args["gamma"] * V_1[i] - V[i]
-                last_gae = delta + self.args["gamma"] * self.args["gae_lambda"] * last_gae
-
-            result_adv.append(last_gae)
-            result_ref.append(last_gae + V[i])
-
-        result_adv = np.asarray(result_adv)
-        result_ref = np.asarray(result_ref)
-
-        # Normalize mini-batch
-        for i in range(0, self.batch.counter, self.batch.mbsize):
-            sub_adv = result_adv[i:i + self.batch.mbsize]
-            result_adv[i:i + self.batch.mbsize] = (sub_adv - sub_adv.mean()) / np.maximum(sub_adv.std(), 1e-6)
-
-        # Normalize whole batch.
-        #result_adv = (result_adv - result_adv.mean()) / np.maximum(result_adv.std(), 1e-6)
-
-        return dict(
-            returns=result_ref,
-            advantage=result_adv
-        )
-
-        # Predict the v_next (Aka the value from the last observation before batch was complete.
-        """V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
         V = old_action_value
         T_1 = np.concatenate((terminal[1:], [0]))
 
@@ -154,4 +115,50 @@ class PPO(Agent):
         return dict(
             returns=np.asarray(td_lambda_return),
             advantage=np.asarray(advantage)
+        )
+        """last_gae = 0
+        adv = np.zeros_like(reward)
+        ret = np.zeros_like(reward)
+
+        V = old_action_value
+        V_1 = np.concatenate((old_action_value[1:], [policy(obs1[-1:])["action_value"]]))
+
+        for i in reversed(range(0, self.batch.counter)):
+            if terminal[i]:
+                delta = reward[i] - V[i]
+                last_gae = delta
+            else:
+                delta = reward[i] + self.args["gamma"] * V_1[i] - V[i]
+                last_gae = delta + self.args["gamma"] * self.args["gae_lambda"] * last_gae
+
+            adv[i] = last_gae
+            ret[i] = last_gae + V[i]
+
+        adv = (adv - adv.std()) / adv.mean()
+        np.nan_to_num(adv, copy=False)
+
+        return dict(
+            advantage=adv,
+            returns=ret
         )"""
+
+    def discounted_returns(self, reward, terminal, old_action_value, **kwargs):
+        discounted_rewards = np.zeros_like(reward)
+        cum_r = 0
+        for i in reversed(range(0, self.batch.counter)):
+            cum_r = reward[i] + (cum_r * self.args["gamma"] * (1 - terminal[i]))
+
+            discounted_rewards[i] = cum_r
+
+        discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()
+        np.nan_to_num(discounted_rewards, copy=False)
+        return dict(
+            advantage=discounted_rewards,  # TODO is this really optimal ???
+            returns=discounted_rewards
+        )
+
+    def advantage(self, **kwargs):
+        if self.args["gae"]:
+            return self.generalized_advantage_estimation(**kwargs)
+        else:
+            return self.discounted_returns(**kwargs)

@@ -49,20 +49,21 @@ A2C = dict(
 PPO = dict(
 
     gae_lambda=0.95,  # Lambda in General Advantange Estimation
-    epsilon=0.3,  # Clipping factor
+    gae=False,  # Generalized Advantage Estimation # TODO not working properly?
+    epsilon=0.2,  # Clipping factor
     kl_coef=0.2,  # TODO
     entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
-    value_coef=0.1,
+    value_coef=0.5,
     gamma=0.99,
 
     batch_mode="steps",
-    batch_size=200,  # 2048
+    batch_size=600,  # 2048
     mini_batches=4,  # 32
     epochs=10,
     batch_shuffle=True,  # Shuffle the batch (mini-batch or not)
 
     value_loss="mse",  # TODO
-
+    value_loss_clipping=False,   # TODO not working properly?
     grad_clipping=None,
 
     #baseline=None,
@@ -70,15 +71,15 @@ PPO = dict(
     policy=lambda agent: PPOPolicy(
         agent=agent,
         #optimizer=dict(
-        #    policy=tf.keras.optimizers.Adam(lr=0.00025),
-        #    value=tf.keras.optimizers.Adam(lr=0.00025),
+        #    policy=tf.keras.optimizers.Adam(lr=0.0007),
+        #    value=tf.keras.optimizers.Adam(lr=0.0007),
         #)
-        optimizer=tf.keras.optimizers.Adam(lr=0.0025)
+        optimizer=tf.keras.optimizers.Adam(lr=0.0007)
     ),
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=1,
+        interval=5,
         strategy="copy",  # copy, mean
         type="weights"  # weights, gradients
     )
