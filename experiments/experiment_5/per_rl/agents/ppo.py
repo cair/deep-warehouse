@@ -164,8 +164,8 @@ class PPO(Agent):
             discounted_rewards[i] = cum_r
             advantage[i] = cum_r - old_action_value[i]
 
-        discounted_rewards = (discounted_rewards - discounted_rewards.std()) / discounted_rewards.mean()
-        advantage = (advantage - advantage.std()) / advantage.mean()
+        discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9)
+        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-9)
 
         return dict(
             advantage=advantage,
