@@ -36,6 +36,7 @@ def main(argv):
         curriculum_epochs = 5
 
         env = Environment(env_name)
+        agent.set_env(env)
 
         # Control set for manhattan distance
         manhattan_control = ManhattanAgent.automate
@@ -47,14 +48,14 @@ def main(argv):
 
             if agent.epoch < curriculum_epochs and is_deep_logisitcs:
                 action = manhattan_control(env.env.agent, perform_action=False)
-                agent.data["action"] = tf.one_hot(action, agent.action_space)
+                agent.data["action"] = tf.one_hot(action, agent.action_space)  # TODO save automatically
 
-            state1, reward, terminal = env.step(action)
+            state1, reward, terminal = agent.step(action)
+
             if reward >= 0.6 and is_deep_logisitcs:
                 terminal = True
 
             agent.observe(
-                obs1=state1,
                 rewards=reward,
                 terminals=terminal
             )
@@ -67,8 +68,6 @@ def main(argv):
             action_space=env.action_space.n,
             tensorboard_enabled=True,
             baseline="reward_mean",
-            batch_size=200,  # 2048
-            mini_batches=4,  # 32
         ), episodes))
     else:
         agents = [

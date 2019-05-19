@@ -74,7 +74,8 @@ class PPO(Agent):
                     -self.args["vf_clip_param"],
                     self.args["vf_clip_param"]
                 )
-
+            vf_clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(v_pred_clipped - 1.0), self.args["vf_clip_param"]), dtype=tf.float64))
+            self.metrics.add("vf_clipfrac", vf_clipfrac, ["mean"], "train", epoch=True)
             vf_losses_1 = tf.square(values - returns)
             vf_losses_2 = tf.square(v_pred_clipped - returns)
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
@@ -99,7 +100,7 @@ class PPO(Agent):
         #self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
 
         clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(ratios - 1.0), self.args["epsilon"]), dtype=tf.float64))
-        self.metrics.add("clipfrac", clipfrac, ["mean"], "train", epoch=True)
+        self.metrics.add("policy_clipfrac", clipfrac, ["mean"], "train", epoch=True)
 
         return -tf.reduce_mean(tf.minimum(surr1, surr2))
 
@@ -125,8 +126,8 @@ class PPO(Agent):
         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
         return advantage
 
-    def generalized_advantage_estimation(self, old_values, policy, obs1, rewards, terminals, **kwargs):
-        V = np.concatenate((old_values, [policy(obs1[-1:])["values"]]))
+    def generalized_advantage_estimation(self, old_values, last_obs, policy, rewards, terminals, **kwargs):
+        V = np.concatenate((old_values, [policy([last_obs])["values"]]))
         terminal = np.concatenate((terminals, [0]))
         gamma = self.args["gamma"]
         lam = self.args["gae_lambda"]

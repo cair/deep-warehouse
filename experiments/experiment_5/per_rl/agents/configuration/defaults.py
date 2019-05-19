@@ -50,7 +50,7 @@ PPO = dict(
 
     # Generalized Advantage Function # TODO
     gae=True,  #
-    gae_lambda=1.0,
+    gae_lambda=0.95,
 
     # Returns
     gamma=0.99,
@@ -59,20 +59,20 @@ PPO = dict(
     epsilon=0.2,  # Policy clipping factor
     kl_coef=0.2,  # TODO
     kl_target=0.01,  # TODO
-    entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
+    entropy_coef=0.0,  # Entropy should be 0.0 for continous action spaces.  # TODO
 
     # Value coefficients
     vf_loss="mse",  # TODO
     vf_clipping=True,   # TODO not working properly?
-    vf_clip_param=10.0,
-    vf_coeff=1.0,
+    vf_clip_param=15.0,
+    vf_coeff=0.5,
 
 
     # Sampling and Training
     batch_mode="steps",
     batch_shuffle=True,
-    batch_size=256,  # 2048
-    mini_batches=256/32,
+    batch_size=2048,  # 2048
+    mini_batches=4,
     epochs=10,
 
     # Optimization
@@ -92,7 +92,7 @@ PPO = dict(
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=2,
+        interval=1,
         strategy="copy",  # copy, mean  # TODO wierd
         type="weights"  # weights, gradients  # TODO wierd
     )

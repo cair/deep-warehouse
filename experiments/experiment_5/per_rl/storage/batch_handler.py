@@ -11,9 +11,9 @@ class DynamicBatch:
     def __init__(self, agent, **kwargs):
         self.agent = agent
         self.episodic = self.agent.batch_mode == "episodic"
-        self.bsize = 1000000 if self.episodic else self.agent.batch_size
-        self.mb = 1 if self.episodic else self.agent.mini_batches
-        self.mbsize = self.bsize // self.mb
+        self.batch_size = 1000000 if self.episodic else self.agent.batch_size
+        self.n_mb = 1 if self.episodic else self.agent.mini_batches
+        self.mb_size = self.batch_size // self.n_mb
 
         self.dtype = agent.dtype
 
@@ -38,7 +38,7 @@ class DynamicBatch:
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
 
-        return self.counter == self.bsize
+        return self.counter == self.batch_size
 
     def get(self):
         return {k: np.asarray(v) for k, v in self.data.items()}

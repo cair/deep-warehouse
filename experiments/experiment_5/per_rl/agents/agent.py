@@ -113,8 +113,24 @@ class Agent:
             batch_size=batch_size
         )
 
-        self.obs = None  # Last seen observation
         self.epoch = 0
+
+        self._env = None
+        self._last_observation = {}
+
+    def set_env(self, env):
+        if self._env is not None:
+            raise UserWarning("You are now overriding existing env %s. Beware!" % env.__class__.__name__)
+        self._env = env
+
+    def step(self, action):
+        s1, r, t = self._env.step(action)
+        self._last_observation["last_obs"] = s1
+
+        # TODO - dont think we ever need these.
+        #self._last_observation["last_reward"] = r
+        #self._last_observation["last_obs"] = t
+        return s1, r, t
 
     def clear_batch_preprocessors(self):
         self.batch_preprocessors.clear()
@@ -198,7 +214,7 @@ class Agent:
 
         if ready:  # or not self.inference_only:
             train_start = time.perf_counter()
-            losses = self.train()
+            losses = self.train(**self._last_observation)
 
             """Update metrics for training"""
             self.metrics.add("total", np.mean(losses), ["mean"], "loss", epoch=True, total=True)
@@ -290,10 +306,10 @@ class Agent:
                 np.random.shuffle(batch_indices)
 
             # Iterate over mini-batches
-            for i in range(0, self.batch.counter, self.batch.mbsize):
+            for i in range(0, self.batch.counter, self.batch.mb_size):
 
                 # Sample indices for the mini-batch
-                mb_indexes = batch_indices[i:i + self.batch.mbsize]
+                mb_indexes = batch_indices[i:i + self.batch.mb_size]
 
                 # Cast all elements to numpy arrays
                 mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}
