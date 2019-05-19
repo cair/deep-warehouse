@@ -115,7 +115,7 @@ class PPO:
 
             # Finding Surrogate Loss:
             state_values = self.policy.state_values[0].to(device)
-            print(state_values)
+
             advantages = rewards - state_values.detach()
 
             surr1 = ratios * advantages
@@ -162,7 +162,6 @@ def main():
         env.seed(random_seed)
 
     ppo = PPO(state_dim, action_dim, n_latent_var, lr, betas, gamma, K_epochs, eps_clip)
-    print(lr,betas)
 
     running_reward = 0
     avg_length = 0

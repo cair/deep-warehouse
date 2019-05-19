@@ -288,7 +288,7 @@ class PPOPolicy(Policy):
         self.v_4 = tf.keras.layers.Dense(64, activation="tanh", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1,
                                                   activation="linear",
-                                                  name="action_value",
+                                                  name="values",
                                                   dtype=self.agent.dtype)
 
     def call(self, inputs, **kwargs):
@@ -311,7 +311,7 @@ class PPOPolicy(Policy):
 
         return {
             "logits": policy_logits,
-            "action_value": tf.squeeze(action_value)
+            "values": tf.squeeze(action_value)
         }
 
 

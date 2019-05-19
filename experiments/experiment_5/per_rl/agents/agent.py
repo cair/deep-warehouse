@@ -96,7 +96,8 @@ class Agent:
         self.metrics = Metrics(self)
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
         self.losses = dict()
-        self.preprocessors = OrderedDict()
+        self.batch_preprocessors = OrderedDict()
+        self.mb_preprocessors = OrderedDict()
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self.args)))
 
@@ -115,17 +116,29 @@ class Agent:
         self.obs = None  # Last seen observation
         self.epoch = 0
 
-    def clear_preprocessors(self):
-        self.preprocessors.clear()
+    def clear_batch_preprocessors(self):
+        self.batch_preprocessors.clear()
 
-    def add_preprocessor(self, name, fn):
-        if name in self.preprocessors:
-            del self.preprocessors[name]
+    def add_batch_preprocessor(self, name, fn):
+        if name in self.batch_preprocessors:
+            del self.batch_preprocessors[name]
 
-        self.preprocessors[name] = fn
+        self.batch_preprocessors[name] = fn
 
-    def remove_preprocessor(self, name):
-        del self.preprocessors[name]
+    def remove_batch_preprocessor(self, name):
+        del self.batch_preprocessors[name]
+
+    def clear_mb_preprocessors(self):
+        self.mb_preprocessors.clear()
+
+    def add_mb_preprocessor(self, name, fn):
+        if name in self.mb_preprocessors:
+            del self.mb_preprocessors[name]
+
+        self.mb_preprocessors[name] = fn
+
+    def remove_mb_preprocessor(self, name):
+        del self.mb_preprocessors[name]
 
     def add_loss(self, name, lambda_fn, tb_text=None):
         self.losses[name] = lambda_fn
@@ -173,9 +186,9 @@ class Agent:
 
         """Metrics update."""
         self.metrics.add("steps", 1, ["sum", "sum_mean"], None, episode=True, epoch=True, total=True)
-        self.metrics.add("reward", kwargs["reward"], ["sum", "sum_mean"], None, episode=True, epoch=False, total=True)
+        self.metrics.add("reward", kwargs["rewards"], ["sum", "sum_mean"], None, episode=True, epoch=False, total=True)
 
-        if kwargs["terminal"]:
+        if kwargs["terminals"]:
             self.metrics.done(episode=True)
             self.metrics.summarize(["reward", "steps"])
 
@@ -203,6 +216,8 @@ class Agent:
                 # Do prediction using current slave policy, add this to the kwargs term.
                 kwargs.update(policy_train(**kwargs))
 
+                # Do preprossessing of mini-batch data
+                self._preprocessing(kwargs, mb=True)
                 # Run all loss functions
                 for loss_name, loss_fn in self.losses.items():
 
@@ -236,10 +251,11 @@ class Agent:
 
         return np.asarray(losses)
 
-    def _preprocessing(self, batch, **kwargs):
+    def _preprocessing(self, batch, mb=False, **kwargs):
+        preprocess_fns = self.mb_preprocessors if mb else self.batch_preprocessors
 
         # Preprocessing of data prior to training
-        for preprocess_name, preprocess_fn in self.preprocessors.items():
+        for preprocess_name, preprocess_fn in preprocess_fns.items():
             preprocess_res = preprocess_fn(**batch, **kwargs)
 
             if isinstance(preprocess_res, dict):

@@ -55,8 +55,8 @@ def main(argv):
 
             agent.observe(
                 obs1=state1,
-                reward=reward,
-                terminal=terminal
+                rewards=reward,
+                terminals=terminal
             )
 
     env = gym.make(env_name)

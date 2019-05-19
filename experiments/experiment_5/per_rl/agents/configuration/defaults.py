@@ -49,14 +49,14 @@ A2C = dict(
 PPO = dict(
 
     # Generalized Advantage Function # TODO
-    gae=False,  #
-    gae_lambda=0.95,
+    gae=True,  #
+    gae_lambda=1.0,
 
     # Returns
     gamma=0.99,
 
     # Policy coefficients
-    epsilon=0.3,  # Policy clipping factor
+    epsilon=0.2,  # Policy clipping factor
     kl_coef=0.2,  # TODO
     kl_target=0.01,  # TODO
     entropy_coef=0.01,  # Entropy should be 0.0 for continous action spaces.  # TODO
@@ -81,18 +81,18 @@ PPO = dict(
     # Policy definition
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        #optimizer=dict(
-        #    policy=tf.keras.optimizers.Adam(lr=0.0007),
-        #    value=tf.keras.optimizers.Adam(lr=0.0007),
-        #)
-        optimizer=tf.keras.optimizers.Adam(lr=0.0007)
+        optimizer=dict(
+            policy=tf.keras.optimizers.Adam(lr=0.0007),
+            value=tf.keras.optimizers.Adam(lr=0.0007),
+        )
+        #optimizer=tf.keras.optimizers.Adam(lr=0.0007)
     ),
 
     # Policy update settings
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=5,
+        interval=2,
         strategy="copy",  # copy, mean  # TODO wierd
         type="weights"  # weights, gradients  # TODO wierd
     )
