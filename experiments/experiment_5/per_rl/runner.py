@@ -26,14 +26,14 @@ def main(argv):
     benchmark = False
     episodes = 13000000
     env_name = "CartPole-v0"
-    #env_name = "deep-logistics-normal-v0"
+    env_name = "deep-logistics-normal-v0"
 
     def submit(args):
         AGENT, spec, episodes = args
         agent = AGENT(**spec)
 
         # Number of epochs to do "supervised" learning (knowledge injection)
-        curriculum_epochs = 5
+        curriculum_epochs = 0
 
         env = Environment(env_name)
         agent.set_env(env)

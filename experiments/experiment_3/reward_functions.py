@@ -4,7 +4,7 @@ from deep_logistics.agent import Agent
 def Reward0(player):
 
     if player.state in [Agent.IDLE, Agent.MOVING]:
-        reward = -0.0001
+        reward = -0.00001
         terminal = False
     elif player.state in [Agent.PICKUP]:
         reward = .5 # Set back? TODO
@@ -20,4 +20,5 @@ def Reward0(player):
         terminal = True
     else:
         raise NotImplementedError("Should never happen. all states should be handled somehow")
+    print(reward)
     return reward, terminal

@@ -49,7 +49,7 @@ A2C = dict(
 PPO = dict(
 
     # Generalized Advantage Function # TODO
-    gae=True,  #
+    gae=False,  #
     gae_lambda=0.95,
 
     # Returns
@@ -59,7 +59,7 @@ PPO = dict(
     epsilon=0.2,  # Policy clipping factor
     kl_coef=0.2,  # TODO
     kl_target=0.01,  # TODO
-    entropy_coef=0.0,  # Entropy should be 0.0 for continous action spaces.  # TODO
+    entropy_coef=0.05,  # Entropy should be 0.0 for continous action spaces.  # TODO
 
     # Value coefficients
     vf_loss="mse",  # TODO

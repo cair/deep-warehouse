@@ -61,7 +61,8 @@ class PPO(Agent):
 
     def _predict(self, inputs):
         pred = super()._predict(inputs)
-        action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
+        print(tf.squeeze(tf.math.softmax(pred["logits"])).numpy())
+        action = tf.squeeze(tf.random.categorical(tf.math.softmax(pred["logits"]), 1))
         self.data["action"] = tf.one_hot(action, self.action_space)
         return action.numpy()
 
