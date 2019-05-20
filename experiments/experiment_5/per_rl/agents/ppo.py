@@ -15,6 +15,8 @@
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
 # DO SOME https://github.com/ray-project/ray/blob/master/python/ray/rllib/agents/ppo/ppo.py
+import time
+
 from scipy.signal import lfilter
 import tensorflow as tf
 
@@ -61,8 +63,10 @@ class PPO(Agent):
 
     def _predict(self, inputs):
         pred = super()._predict(inputs)
-        print(tf.squeeze(tf.math.softmax(pred["logits"])).numpy())
-        action = tf.squeeze(tf.random.categorical(tf.math.softmax(pred["logits"]), 1))
+
+        # TODO should logits be inserted directly?= MUST FIND OUT!
+        
+        action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
         self.data["action"] = tf.one_hot(action, self.action_space)
         return action.numpy()
 
@@ -90,6 +94,9 @@ class PPO(Agent):
 
         neglogpac_old = tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * action, axis=1)
         neglogpac_new = tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * action, axis=1)
+
+
+
 
         ratios = tf.exp(neglogpac_new - tf.stop_gradient(neglogpac_old))
 
@@ -125,6 +132,10 @@ class PPO(Agent):
         advantage = np.asarray(returns - values)
         # Normalize the advantages
         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+
+
+        self.metrics.add("advantage", advantage.mean(), ["mean"], "train", epoch=True)
+
         return advantage
 
     def generalized_advantage_estimation(self, old_values, last_obs, policy, rewards, terminals, **kwargs):

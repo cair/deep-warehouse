@@ -52,9 +52,6 @@ def main(argv):
 
             state1, reward, terminal = agent.step(action)
 
-            if reward >= 0.6 and is_deep_logisitcs:
-                terminal = True
-
             agent.observe(
                 rewards=reward,
                 terminals=terminal
