@@ -67,7 +67,7 @@ class PPO(Agent):
         # TODO should logits be inserted directly?= MUST FIND OUT!
         logits = pred["logits"]
         epsilon = 1e-6
-        print(logits)
+
         uniform_distribution = tf.random.uniform(
             shape=tf.shape(input=logits), minval=epsilon, maxval=(1 - epsilon),
             dtype=tf.float32

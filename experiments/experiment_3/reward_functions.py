@@ -7,6 +7,10 @@ class RewardState:
         self.last_y = None
 
         self.is_closer = False
+        self.counter = 0
+    def update2(self):
+        self.counter += 0.001
+        return -self.counter
     def update(self, player):
         self.is_closer = False
         x = player.cell.x
@@ -29,9 +33,9 @@ class RewardState:
         self.last_x = x
         self.last_y = y
         if self.is_closer:
-            return 0.1
+            return 1
         else:
-            return -0.001
+            return -1
 
 
 rstate = RewardState()
@@ -39,10 +43,11 @@ rstate = RewardState()
 def Reward0(player):
 
     if player.state in [Agent.IDLE, Agent.MOVING]:
-        reward = rstate.update(player)
+        reward = rstate.update2()
         terminal = False
     elif player.state in [Agent.PICKUP]:
-        reward = .5 # Set back? TODO
+        rstate.counter = 0
+        reward = 1 # Set back? TODO
         terminal = False
     elif player.state in [Agent.DELIVERY]:
         reward = 1

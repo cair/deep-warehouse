@@ -71,8 +71,8 @@ PPO = dict(
     # Sampling and Training
     batch_mode="steps",
     batch_shuffle=True,
-    batch_size=2048,  # 2048
-    mini_batches=4,
+    batch_size=5120,  # 2048
+    mini_batches=int(5120/128),
     epochs=10,
 
     # Optimization
