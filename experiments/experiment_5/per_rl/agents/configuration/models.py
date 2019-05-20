@@ -273,19 +273,19 @@ class PPOPolicy(Policy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.p_1 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.p_2 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.p_3 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.p_4 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
+        self.p_1 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.p_2 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.p_3 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.p_4 = tf.keras.layers.Dense(64, activation="tanh", dtype=self.agent.dtype)
         self.logits = tf.keras.layers.Dense(self.agent.action_space,
                                             activation="linear",
                                             name='policy_logits'
                                             )
 
-        self.v_1 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.v_2 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.v_3 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
-        self.v_4 = tf.keras.layers.Dense(64, activation="relu", dtype=self.agent.dtype)
+        self.v_1 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.v_2 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.v_3 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
+        self.v_4 = tf.keras.layers.Dense(64, activation="tanh", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1,
                                                   activation="linear",
                                                   name="values",

@@ -65,10 +65,22 @@ class PPO(Agent):
         pred = super()._predict(inputs)
 
         # TODO should logits be inserted directly?= MUST FIND OUT!
-        
-        action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
-        self.data["action"] = tf.one_hot(action, self.action_space)
-        return action.numpy()
+        logits = pred["logits"]
+        epsilon = 1e-6
+        print(logits)
+        uniform_distribution = tf.random.uniform(
+            shape=tf.shape(input=logits), minval=epsilon, maxval=(1 - epsilon),
+            dtype=tf.float32
+        )
+        gumbel_distribution = -tf.math.log(x=-tf.math.log(x=uniform_distribution))
+
+        sampled = tf.argmax(input=(logits + gumbel_distribution), axis=-1)
+        sampled = tf.dtypes.cast(x=sampled, dtype=tf.int32)
+        sampled = tf.squeeze(sampled)
+
+        #action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
+        self.data["action"] = tf.one_hot(sampled, self.action_space)
+        return sampled.numpy()
 
     def value_loss(self, old_values, values, returns, **kwargs):
 
@@ -85,23 +97,24 @@ class PPO(Agent):
             vf_losses_2 = tf.square(v_pred_clipped - returns)
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
-            return self.args["vf_coeff"] * vf_loss
         else:
-            return tf.losses.mean_squared_error(returns, values) * self.args["vf_coeff"]
+            vf_loss = tf.losses.mean_squared_error(returns, values)
 
+        return vf_loss * self.args["vf_coeff"]
 
     def policy_loss(self, logits, old_logits, action, advantages, **kwargs):
 
         neglogpac_old = tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * action, axis=1)
         neglogpac_new = tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * action, axis=1)
 
-
-
-
         ratios = tf.exp(neglogpac_new - tf.stop_gradient(neglogpac_old))
 
-        surr1 = ratios * advantages
-        surr2 = tf.clip_by_value(ratios, 1.0 - self.args["epsilon"], 1.0 + self.args["epsilon"])
+        surr1 = ratios
+        surr2 = tf.clip_by_value(
+            ratios,
+            1.0 - self.args["epsilon"],
+            1.0 + self.args["epsilon"]
+        )
 
         # Metrics
         #approxkl = .5 * tf.reduce_mean(tf.square(neglogpac_new - neglogpac_old))
@@ -110,7 +123,10 @@ class PPO(Agent):
         clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(ratios - 1.0), self.args["epsilon"]), dtype=tf.float64))
         self.metrics.add("policy_clipfrac", clipfrac, ["mean"], "train", epoch=True)
 
-        return -tf.reduce_mean(tf.minimum(surr1, surr2))
+        return tf.reduce_mean(-tf.minimum(
+            surr1 * advantages,
+            surr2 * advantages
+        ))
 
     def entropy_loss(self, logits, **kwargs):
 
@@ -132,7 +148,6 @@ class PPO(Agent):
         advantage = np.asarray(returns - values)
         # Normalize the advantages
         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-
 
         self.metrics.add("advantage", advantage.mean(), ["mean"], "train", epoch=True)
 

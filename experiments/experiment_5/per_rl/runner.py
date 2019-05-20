@@ -25,7 +25,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 def main(argv):
     benchmark = False
     episodes = 13000000
-    env_name = "CartPole-v0"
+    #env_name = "CartPole-v1"
     env_name = "deep-logistics-normal-v0"
 
     def submit(args):
