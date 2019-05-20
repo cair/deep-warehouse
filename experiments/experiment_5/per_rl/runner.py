@@ -24,8 +24,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # MY NOTES: https://hastebin.com/usasisifuw
 def main(argv):
     benchmark = False
-    episodes = 13000000
-    #env_name = "CartPole-v1"
+    episodes = 130454535345
+    #env_name = "CartPole-v0"
     env_name = "deep-logistics-normal-v0"
 
     def submit(args):
@@ -48,11 +48,10 @@ def main(argv):
 
             if agent.epoch < curriculum_epochs and is_deep_logisitcs:
                 action = manhattan_control(env.env.agent, perform_action=False)
-                agent.data["action"] = tf.one_hot(action, agent.action_space)  # TODO save automatically
-
             state1, reward, terminal = agent.step(action)
 
             agent.observe(
+                actions=tf.one_hot(action, agent.action_space),
                 rewards=reward,
                 terminals=terminal
             )

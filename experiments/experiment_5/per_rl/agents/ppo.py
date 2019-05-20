@@ -21,7 +21,6 @@ from scipy.signal import lfilter
 import tensorflow as tf
 
 from experiments.experiment_5.per_rl import utils
-from experiments.experiment_5.per_rl.agents.a2c import A2C
 from experiments.experiment_5.per_rl.agents.agent import Agent, DecoratedAgent
 from experiments.experiment_5.per_rl.agents.configuration import defaults
 import numpy as np
@@ -34,6 +33,13 @@ import numpy as np
 # https://cs.uwaterloo.ca/~ppoupart/teaching/cs885-spring18/slides/cs885-lecture15b.pdf
 from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 
+# WEIGHT AVERAGING
+# http://www.gatsby.ucl.ac.uk/~balaji/udl-camera-ready/UDL-24.pdf
+
+
+# PPO-CMA
+# https://www.reddit.com/r/reinforcementlearning/comments/boi4m0/ppocma_proximal_policy_optimization_with/
+
 
 @DecoratedAgent
 class PPO(Agent):
@@ -41,7 +47,7 @@ class PPO(Agent):
         "gae_lambda",
         "gae",
         "epsilon",
-        "kl_coef",
+        "kl_coeff",
         "vf_coeff",
         "vf_clipping",
         "vf_clip_param",
@@ -54,8 +60,10 @@ class PPO(Agent):
         super(PPO, self).__init__(**kwargs)
 
         self.add_batch_preprocessor("advantages", self.advantages)
-        self.add_mb_preprocessor("advantages", self.mb_advantages)
+        self.add_mb_preprocessor("neglogp", self.mb_neglogp)
+        #self.add_mb_preprocessor("advantages", self.mb_advantages)  # TODO does not really make sense?
 
+        self.add_loss("action_kl_loss", self.kl_loss, "Action KL Loss")
         self.add_loss("policy_loss", self.policy_loss, "Policy loss of PPO")
         self.add_loss("value_loss", self.value_loss, "Action loss of PPO")
         self.add_loss("entropy_loss", self.entropy_loss, "Action loss of PPO")
@@ -79,7 +87,7 @@ class PPO(Agent):
         sampled = tf.squeeze(sampled)
 
         #action = tf.squeeze(tf.random.categorical(pred["logits"], 1))
-        self.data["action"] = tf.one_hot(sampled, self.action_space)
+        #self.data["action"] = tf.one_hot(sampled, self.action_space)
         return sampled.numpy()
 
     def value_loss(self, old_values, values, returns, **kwargs):
@@ -102,12 +110,15 @@ class PPO(Agent):
 
         return vf_loss * self.args["vf_coeff"]
 
-    def policy_loss(self, logits, old_logits, action, advantages, **kwargs):
+    def kl_loss(self, neglogp_old, neglogp_new, **kwargs):
+        #action_kl = tf.losses.kullback_leibler_divergence(neglogp_old, neglogp_new)
+        #print(action_kl)
+        action_kl = tf.reduce_mean(tf.square(neglogp_new - neglogp_old))  # APPROX VERSION?
+        return action_kl * self.args["kl_coeff"]
 
-        neglogpac_old = tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * action, axis=1)
-        neglogpac_new = tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * action, axis=1)
+    def policy_loss(self, neglogp_old, neglogp_new, advantages, **kwargs):
 
-        ratios = tf.exp(neglogpac_new - tf.stop_gradient(neglogpac_old))
+        ratios = tf.exp(neglogp_new - tf.stop_gradient(neglogp_old))
 
         surr1 = ratios
         surr2 = tf.clip_by_value(
@@ -137,6 +148,11 @@ class PPO(Agent):
     def discount(self, x, gamma):
         return lfilter([1], [1, -gamma], x[::-1], axis=0)[::-1]
 
+    def mb_neglogp(self, old_logits, logits, actions, **kwargs):
+        return dict(
+            neglogp_old=tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * actions, axis=1),
+            neglogp_new=tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * actions, axis=1)
+        )
 
     def mb_advantages(self, returns, values, old_values, **kwargs):
 
@@ -167,7 +183,10 @@ class PPO(Agent):
 
         returns = adv + old_values
 
+        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+
         return dict(
+            advantages=adv,
             returns=returns
         )
 
