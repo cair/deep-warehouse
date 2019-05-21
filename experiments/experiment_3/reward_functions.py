@@ -43,7 +43,8 @@ rstate = RewardState()
 def Reward0(player):
 
     if player.state in [Agent.IDLE, Agent.MOVING]:
-        reward = rstate.update2()
+        #reward = rstate.update2()
+        reward = 0
         terminal = False
     elif player.state in [Agent.PICKUP]:
         rstate.counter = 0

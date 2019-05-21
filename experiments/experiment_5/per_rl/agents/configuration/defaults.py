@@ -49,7 +49,7 @@ A2C = dict(
 PPO = dict(
 
     # Generalized Advantage Function # TODO
-    gae=True,  #
+    gae=False,  #
     gae_lambda=0.95,
 
     # Returns
@@ -64,26 +64,26 @@ PPO = dict(
     # Value coefficients
     vf_loss="mse",  # TODO
     vf_clipping=True,   # TODO not working properly?
-    vf_clip_param=15.0,
+    vf_clip_param=1.0,
     vf_coeff=1.0,
 
 
     # Sampling and Training
     batch_mode="steps",
-    batch_shuffle=True,
-    batch_size=512,  # 2048
-    mini_batches=int(512/16),
+    batch_shuffle=False,
+    batch_size=2048,  # 2048
+    mini_batches=int(2048/2048),
     epochs=10,
 
     # Optimization
-    grad_clipping=5,
+    grad_clipping=0.2,  # TODO.
 
     # Policy definition
     policy=lambda agent: PPOPolicy(
         agent=agent,
         optimizer=dict(
-            policy=tf.keras.optimizers.Adam(lr=0.0007, epsilon=1e-5),
-            value=tf.keras.optimizers.Adam(lr=0.0007, epsilon=1e-5),
+            policy=tf.keras.optimizers.Adam(lr=3e-4),
+            value=tf.keras.optimizers.Adam(lr=3e-4),
         )
         #optimizer=tf.keras.optimizers.Adam(lr=0.0007)
     ),

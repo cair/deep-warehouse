@@ -47,6 +47,7 @@ def DecoratedAgent(cls, **kwargs):
 
 class Agent:
     SUPPORTED_BATCH_MODES = ["episodic", "steps"]
+    SUPPORTED_PROCESSORS = ["batch", "mini-batch", "post"]
     DEFAULTS = dict()
 
     def __init__(self,
@@ -95,9 +96,11 @@ class Agent:
 
         self.metrics = Metrics(self)
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
+        self.udata = dict()  # Data storage for data processed during training. should be cleared after traini
         self.losses = dict()
-        self.batch_preprocessors = OrderedDict()
-        self.mb_preprocessors = OrderedDict()
+        self.processors = {
+            t: OrderedDict() for t in Agent.SUPPORTED_PROCESSORS
+        }
 
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self.args)))
 
@@ -127,34 +130,29 @@ class Agent:
         s1, r, t = self._env.step(action)
         self._last_observation["last_obs"] = s1
 
-        # TODO - dont think we ever need these.
-        #self._last_observation["last_reward"] = r
-        #self._last_observation["last_obs"] = t
         return s1, r, t
 
-    def clear_batch_preprocessors(self):
-        self.batch_preprocessors.clear()
+    def _validate_processor(self, t):
+        if t not in Agent.SUPPORTED_PROCESSORS:
+            raise NotImplementedError("A processor with type %s does not exist (%s)" % (t, Agent.SUPPORTED_PROCESSORS))
 
-    def add_batch_preprocessor(self, name, fn):
-        if name in self.batch_preprocessors:
-            del self.batch_preprocessors[name]
+    def clear_processors(self, t):
+        self._validate_processor(t)
+        self.processors[t].clear()
 
-        self.batch_preprocessors[name] = fn
+    def add_processor(self, name, fn, t):
+        self._validate_processor(t)
+        processors = self.processors[t]
 
-    def remove_batch_preprocessor(self, name):
-        del self.batch_preprocessors[name]
+        if name in processors:
+            UserWarning("The processor of type %s with name %s was overridden." % (t, name))
+            del processors[name]
 
-    def clear_mb_preprocessors(self):
-        self.mb_preprocessors.clear()
+        processors[name] = fn
 
-    def add_mb_preprocessor(self, name, fn):
-        if name in self.mb_preprocessors:
-            del self.mb_preprocessors[name]
-
-        self.mb_preprocessors[name] = fn
-
-    def remove_mb_preprocessor(self, name):
-        del self.mb_preprocessors[name]
+    def remove_processor(self, name, t):
+        self._validate_processor(t)
+        del self.processors[t][name]
 
     def add_loss(self, name, lambda_fn, tb_text=None):
         self.losses[name] = lambda_fn
@@ -233,7 +231,8 @@ class Agent:
                 kwargs.update(policy_train(**kwargs))
 
                 # Do preprossessing of mini-batch data
-                self._preprocessing(kwargs, mb=True)
+                self._preprocessing(kwargs, ptype="mini-batch")
+
                 # Run all loss functions
                 for loss_name, loss_fn in self.losses.items():
 
@@ -265,10 +264,13 @@ class Agent:
         # Optimize all of the policies
         self.policy.optimize()
 
+        # postprocess the data
+        self._preprocessing(kwargs, ptype="post")
+
         return np.asarray(losses)
 
-    def _preprocessing(self, batch, mb=False, **kwargs):
-        preprocess_fns = self.mb_preprocessors if mb else self.batch_preprocessors
+    def _preprocessing(self, batch, ptype, **kwargs):
+        preprocess_fns = self.processors[ptype]
 
         # Preprocessing of data prior to training
         for preprocess_name, preprocess_fn in preprocess_fns.items():
@@ -293,7 +295,7 @@ class Agent:
         batch = self.batch.get()
 
         # Preprocess the data
-        self._preprocessing(batch, **kwargs)
+        self._preprocessing(batch, ptype="batch", **kwargs)
 
         # Retrieve batch indices for this batch
         batch_indices = np.arange(self.batch.counter)
@@ -320,5 +322,7 @@ class Agent:
         self.metrics.done(epoch=True)
 
         self.batch.done()
+        print(self.udata)
+        self.udata.clear()
         self.epoch += 1
         return losses

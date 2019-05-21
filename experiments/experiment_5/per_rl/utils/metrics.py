@@ -138,6 +138,8 @@ class Metrics:
             epoch=0,
         )
 
+        self.step_counter = dict()
+
         self.metrics = {
             t: {} for t in Metrics.supported.keys()
         }
@@ -210,6 +212,8 @@ class Metrics:
     def text(self, name, data):
         tf.summary.text(name, data, 0)
 
-
-    # def histogram(self, name, distribution):
-    #    tf.scalar.histogram("sysx/%s" % name, distribution, self.episode)
+    def histogram(self, name, distribution):
+        if name not in self.step_counter:
+            self.step_counter[name] = 0
+        tf.summary.histogram(name, distribution, self.step_counter[name])
+        self.step_counter[name] += 1

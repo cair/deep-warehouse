@@ -273,19 +273,18 @@ class PPOPolicy(Policy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.p_1 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.p_2 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.p_3 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.p_4 = tf.keras.layers.Dense(64, activation="tanh", dtype=self.agent.dtype)
+        self.p_1 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
+        self.p_2 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
+        self.p_3 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
         self.logits = tf.keras.layers.Dense(self.agent.action_space,
-                                            activation="linear",
+                                            dtype=self.agent.dtype,
+                                            activation="linear",  # or tanh
                                             name='policy_logits'
                                             )
 
-        self.v_1 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.v_2 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.v_3 = tf.keras.layers.Dense(128, activation="tanh", dtype=self.agent.dtype)
-        self.v_4 = tf.keras.layers.Dense(64, activation="tanh", dtype=self.agent.dtype)
+        self.v_1 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
+        self.v_2 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
+        self.v_3 = tf.keras.layers.Dense(512, activation="relu", dtype=self.agent.dtype)
         self.action_value = tf.keras.layers.Dense(1,
                                                   activation="linear",
                                                   name="values",
@@ -298,7 +297,6 @@ class PPOPolicy(Policy):
             p = self.p_1(inputs)
             p = self.p_2(p)
             p = self.p_3(p)
-            p = self.p_4(p)
             policy_logits = self.logits(p)
 
         # Value Head
@@ -306,7 +304,6 @@ class PPOPolicy(Policy):
             v = self.v_1(inputs)
             v = self.v_2(v)
             v = self.v_3(v)
-            v = self.v_4(v)
             action_value = self.action_value(v)
 
         return {
