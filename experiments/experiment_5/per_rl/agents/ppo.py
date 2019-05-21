@@ -90,8 +90,8 @@ class PPO(Agent):
         #  return np.random.choice(
         #             np.arange(self._env.n_actions), p=probabilities[0])
 
-        self.metrics.histogram("action_one_hot", sampled)
-        self.metrics.histogram("action_probs", tf.math.softmax(logits))
+        #self.metrics.histogram("action_one_hot", sampled)
+        #self.metrics.histogram("action_probs", tf.math.softmax(logits))
 
         return sampled.numpy()
 
@@ -115,9 +115,10 @@ class PPO(Agent):
 
         return vf_loss * self.args["vf_coeff"]
 
-    @KeepLocals(include=[
-        "kl"
-    ])
+    @KeepLocals(
+        include=["kl"],
+        attribute="udata"
+    )
     def kl_loss(self, neglogp_old, neglogp_new, old_logits, logits, actions, **kwargs):
         #action_kl = tf.losses.kullback_leibler_divergence(neglogp_old, neglogp_new)
         #print(action_kl)

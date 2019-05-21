@@ -1,9 +1,11 @@
 import sys
-def KeepLocals(include=None):
+def KeepLocals(attribute, include):
     # https://stackoverflow.com/questions/38498159/accessing-original-function-variables-in-decorators
+
     def Wrapped(f, **kwargs):
 
         def locals_to_globals(self, *args, **kwargs):
+
             """
             Calls the function *func* with the specified arguments and keyword
             arguments and snatches its local frame before it actually executes.
@@ -24,9 +26,10 @@ def KeepLocals(include=None):
                 sys.settrace(trace)
 
             # If there is anything to include to global scope
-            if include:
-                f_locals = frame.f_locals
-                self.udata.update({k: f_locals[k] for k in include})
+            #if include:  # Assume that include is set here
+            saveloc = getattr(self, attribute)
+            f_locals = frame.f_locals
+            saveloc.update({k: f_locals[k] for k in include})
             return result
 
         return locals_to_globals
