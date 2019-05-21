@@ -47,7 +47,7 @@ def DecoratedAgent(cls, **kwargs):
 
 class Agent:
     SUPPORTED_BATCH_MODES = ["episodic", "steps"]
-    SUPPORTED_PROCESSORS = ["batch", "mini-batch", "post"]
+    SUPPORTED_PROCESSORS = ["batch", "mini-batch", "loss", "post"]
     DEFAULTS = dict()
 
     def __init__(self,
@@ -81,23 +81,28 @@ class Agent:
         """Define properties."""
         self.obs_space = obs_space
         self.action_space = action_space
+
+        # TODO - Define as mixin?
         self.batch_mode = batch_mode
         self.batch_size = batch_size
         self.batch_shuffle = batch_shuffle
         self.mini_batches = mini_batches
+
         self.dtype = dtype
         self.grad_clipping = grad_clipping
         self.epochs = epochs
         self.policy = PolicyManager(policy(self), **policy_update)  # Initialize policy and pass to the policy manager.
 
+        # TODO - Define as mixin?
         self._tensorboard_enabled = tensorboard_enabled
         self._tensorboard_path = tensorboard_path
         self._name_prefix = name_prefix
 
+        # TODO - Define as mixin?
         self.metrics = Metrics(self)
         self.data = dict()  # Keeps track of all data per iteration. Resets after train()
         self.udata = dict()  # Data storage for data processed during training. should be cleared after traini
-        self.losses = dict()
+
         self.processors = {
             t: OrderedDict() for t in Agent.SUPPORTED_PROCESSORS
         }
@@ -121,6 +126,9 @@ class Agent:
         self._env = None
         self._last_observation = {}
 
+
+        self._train_ready = False
+
     def set_env(self, env):
         if self._env is not None:
             raise UserWarning("You are now overriding existing env %s. Beware!" % env.__class__.__name__)
@@ -140,7 +148,7 @@ class Agent:
         self._validate_processor(t)
         self.processors[t].clear()
 
-    def add_processor(self, name, fn, t):
+    def add_processor(self, name, fn, t, text=None):
         self._validate_processor(t)
         processors = self.processors[t]
 
@@ -148,21 +156,15 @@ class Agent:
             UserWarning("The processor of type %s with name %s was overridden." % (t, name))
             del processors[name]
 
+        if text:
+            """Add text on tensorboard"""
+            self.metrics.text(name, text)
+
         processors[name] = fn
 
     def remove_processor(self, name, t):
         self._validate_processor(t)
         del self.processors[t][name]
-
-    def add_loss(self, name, lambda_fn, tb_text=None):
-        self.losses[name] = lambda_fn
-
-        if tb_text:
-            """Add text on tensorboard"""
-            self.metrics.text(name, tb_text)
-
-    def remove_loss(self, name):
-        del self.losses[name]
 
     def _predict(self, inputs):
         """
@@ -206,17 +208,9 @@ class Agent:
             self.metrics.done(episode=True)
             self.metrics.summarize(["reward", "steps"])
 
-        ready = self.batch.add(
+        self._train_ready = self.batch.add(
             **self.data
         )
-
-        if ready:  # or not self.inference_only:
-            train_start = time.perf_counter()
-            losses = self.train(**self._last_observation)
-
-            """Update metrics for training"""
-            self.metrics.add("total", np.mean(losses), ["mean"], "loss", epoch=True, total=True)
-            self.metrics.add("backprop", time.perf_counter() - train_start, ["mean"], "time", epoch=True)
 
     def _backprop(self, **kwargs):
 
@@ -234,7 +228,7 @@ class Agent:
                 self._preprocessing(kwargs, ptype="mini-batch")
 
                 # Run all loss functions
-                for loss_name, loss_fn in self.losses.items():
+                for loss_name, loss_fn in self.processors["loss"].items():
 
                     # Perform loss calculation
                     loss = loss_fn(**kwargs)
@@ -281,13 +275,16 @@ class Agent:
             else:
                 batch[preprocess_name] = preprocess_res
 
+    #@Benchmark
     def train(self, **kwargs):
         """
-
         :param kwargs: Kwargs is used throughout the training process.
         During preprocessing the kwargs is filled with new data, typically advantages... etc
         :return:
         """
+        if not self._train_ready:
+            return False
+
         # Save policy into the kwargs dictionary for use in preprocessing etc.
         kwargs["policy"] = self.policy
 
@@ -322,7 +319,12 @@ class Agent:
         self.metrics.done(epoch=True)
 
         self.batch.done()
-        print(self.udata)
         self.udata.clear()
         self.epoch += 1
+
+
+        """Update metrics for training"""
+        self.metrics.add("total", np.mean(losses), ["mean"], "loss", epoch=True, total=True)
+        #self.metrics.add("backprop", time.perf_counter() - train_start, ["mean"], "time", epoch=True)
+
         return losses

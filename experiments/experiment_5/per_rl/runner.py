@@ -56,6 +56,8 @@ def main(argv):
                 terminals=terminal
             )
 
+            agent.train()
+
     env = gym.make(env_name)
 
     if not benchmark:

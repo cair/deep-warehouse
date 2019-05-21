@@ -62,10 +62,10 @@ class PPO(Agent):
         self.add_processor("neglogp", self.mb_neglogp, "mini-batch")
         self.add_processor("update_kl", self.post_update_kl, "post")
 
-        self.add_loss("action_kl_loss", self.kl_loss, "Action KL Loss")
-        self.add_loss("policy_loss", self.policy_loss, "Policy loss of PPO")
-        self.add_loss("value_loss", self.value_loss, "Action loss of PPO")
-        self.add_loss("entropy_loss", self.entropy_loss, "Action loss of PPO")
+        self.add_processor("action_kl_loss", self.kl_loss, "loss", text="Action KL Loss")
+        self.add_processor("policy_loss", self.policy_loss, "loss", text="Policy loss of PPO")
+        self.add_processor("value_loss", self.value_loss, "loss", text="Action loss of PPO")
+        self.add_processor("entropy_loss", self.entropy_loss, "loss", text="Action loss of PPO")
         # TODO make a way to adopt this from other classes i.e reinforce.
 
     def _predict(self, inputs):
