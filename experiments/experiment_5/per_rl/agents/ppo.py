@@ -66,32 +66,22 @@ class PPO(Agent):
         self.add_processor("policy_loss", self.policy_loss, "loss", text="Policy loss of PPO")
         self.add_processor("value_loss", self.value_loss, "loss", text="Action loss of PPO")
         self.add_processor("entropy_loss", self.entropy_loss, "loss", text="Action loss of PPO")
-        # TODO make a way to adopt this from other classes i.e reinforce.
+        self.add_callback(self.on_terminal, "on_terminal")
+
+    def on_terminal(self):
+        self.metrics.add("value", self.data["old_values"], ["mean"], None, episode=True, epoch=False, total=False)
+
 
     def _predict(self, inputs):
         pred = super()._predict(inputs)
         logits = pred["logits"]
-        # TODO should logits be inserted directly?= MUST FIND OUT!
 
-        """epsilon = 1e-6
-
-        uniform_distribution = tf.random.uniform(
-            shape=tf.shape(input=logits), minval=epsilon, maxval=(1 - epsilon),
-            dtype=tf.float32
-        )
-        gumbel_distribution = -tf.math.log(x=-tf.math.log(x=uniform_distribution))
-
-        sampled = tf.argmax(input=(logits + gumbel_distribution), axis=-1)
-        sampled = tf.dtypes.cast(x=sampled, dtype=tf.int32)
-        sampled = tf.squeeze(sampled)"""
-
-        sampled = tf.squeeze(tf.random.categorical(logits, 1), axis=-1)
+        sampled = tf.squeeze(tf.random.categorical(logits, 1))
 
         #  return np.random.choice(
         #             np.arange(self._env.n_actions), p=probabilities[0])
 
-        #self.metrics.histogram("action_one_hot", sampled)
-        #self.metrics.histogram("action_probs", tf.math.softmax(logits))
+
 
         return sampled.numpy()
 
@@ -111,7 +101,9 @@ class PPO(Agent):
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
         else:
-            vf_loss = tf.losses.mean_squared_error(returns, values)
+
+            vf_loss = tf.reduce_mean(tf.math.squared_difference(returns, tf.reduce_sum(values, axis=0)))
+            #vf_loss = tf.losses.mean_squared_error(returns, values)
 
         return vf_loss * self.args["vf_coeff"]
 
@@ -126,8 +118,8 @@ class PPO(Agent):
         #approxkl = .5 * tf.reduce_mean(tf.square(neglogpac_new - neglogpac_old))
         #self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
 
-        logp = tf.math.log_softmax(logits, axis=1) * actions
-        logq = tf.math.log_softmax(old_logits, axis=1) * actions
+        logp = tf.math.softmax(logits, axis=1) * actions
+        logq = tf.math.softmax(old_logits, axis=1) * actions
 
         kl = tf.reduce_mean(tf.reduce_sum(tf.math.softmax(logits) * (logp - logq), axis=1))
 
@@ -139,7 +131,8 @@ class PPO(Agent):
 
     def policy_loss(self, neglogp_old, neglogp_new, advantages, **kwargs):
 
-        surr1 = tf.exp(neglogp_new - tf.stop_gradient(neglogp_old))
+        #surr1 = tf.exp(neglogp_new - tf.stop_gradient(neglogp_old))
+        surr1 = neglogp_new / (neglogp_old + 1e-10)
 
         surr2 = tf.clip_by_value(
             surr1,
@@ -147,13 +140,19 @@ class PPO(Agent):
             1.0 + self.args["epsilon"]
         )
 
+        #surr2 = tf.clip_by_value(
+        #    surr1,
+        #    1.0 - self.args["epsilon"],
+        #    1.0 + self.args["epsilon"]
+        #)
+
         surr_clip_frac = tf.reduce_mean(
             tf.cast(tf.greater(tf.abs(surr1 - 1.0), self.args["epsilon"]), dtype=tf.float64)
         )
 
         self.metrics.add("policy_clipfrac", surr_clip_frac, ["mean"], "train", epoch=True)
 
-        return tf.reduce_mean(-tf.minimum(
+        return -tf.reduce_mean(tf.minimum(
             surr1 * advantages,
             surr2 * advantages
         ))
@@ -161,13 +160,14 @@ class PPO(Agent):
     def entropy_loss(self, logits, **kwargs):
         log_prob = tf.math.softmax(logits)
         return self.args["entropy_coef"] * tf.reduce_mean(
-            -tf.reduce_sum(log_prob * tf.math.log(log_prob), axis=1)
+            -tf.reduce_sum(log_prob * tf.math.log(log_prob + 1e-10), axis=1)
         )
 
     def mb_neglogp(self, old_logits, logits, actions, **kwargs):
+
         return dict(
-            neglogp_old=tf.reduce_sum(tf.math.log_softmax(old_logits, axis=1) * actions, axis=1),
-            neglogp_new=tf.reduce_sum(tf.math.log_softmax(logits, axis=1) * actions, axis=1)
+            neglogp_old=tf.reduce_sum(tf.math.softmax(old_logits) * actions, axis=1),
+            neglogp_new=tf.reduce_sum(tf.math.softmax(logits) * actions, axis=1)
         )
 
     def mb_advantages(self, returns, values, old_values, **kwargs):
@@ -186,6 +186,7 @@ class PPO(Agent):
         return advantage
 
     def generalized_advantage_estimation(self, old_values, last_obs, policy, rewards, terminals, **kwargs):
+
         V = np.concatenate((old_values, [policy([last_obs])["values"]]))
         terminal = np.concatenate((terminals, [0]))
         gamma = self.args["gamma"]
@@ -231,7 +232,7 @@ class PPO(Agent):
 
 
     def post_update_kl(self, **kwargs):
-        print("update")
+
         return {
 
         }

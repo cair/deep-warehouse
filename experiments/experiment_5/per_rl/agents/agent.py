@@ -55,9 +55,9 @@ class Agent:
                  action_space: gym.spaces.Discrete,
                  policy,
                  policy_update,
+                 buffer_mode: str = "episodic",
+                 buffer_size: int = 2048,
                  batch_shuffle=False,
-                 batch_mode: str = "episodic",
-                 mini_batches: int = 1,
                  batch_size: int = 32,
                  epochs: int = 1,
                  grad_clipping=None,
@@ -83,10 +83,10 @@ class Agent:
         self.action_space = action_space
 
         # TODO - Define as mixin?
-        self.batch_mode = batch_mode
+        self.buffer_mode = buffer_mode
+        self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.batch_shuffle = batch_shuffle
-        self.mini_batches = mini_batches
 
         self.dtype = dtype
         self.grad_clipping = grad_clipping
@@ -107,12 +107,15 @@ class Agent:
             t: OrderedDict() for t in Agent.SUPPORTED_PROCESSORS
         }
 
+        self.callbacks = {
+            "on_terminal": []
+        }
+
         self.metrics.text("hyperparameters", tf.convert_to_tensor(utils.hyperparameters_to_table(self.args)))
 
-        if batch_mode not in Agent.SUPPORTED_BATCH_MODES:
+        if buffer_mode not in Agent.SUPPORTED_BATCH_MODES:
             raise NotImplementedError("The batch mode %s is not supported. Use one of the following: %s" %
-                                      (batch_mode, Agent.SUPPORTED_BATCH_MODES))
-        self.batch_mode = batch_mode
+                                      (buffer_mode, Agent.SUPPORTED_BATCH_MODES))
 
         self.batch = DynamicBatch(
             agent=self,
@@ -125,8 +128,6 @@ class Agent:
 
         self._env = None
         self._last_observation = {}
-
-
         self._train_ready = False
 
     def set_env(self, env):
@@ -147,6 +148,15 @@ class Agent:
     def clear_processors(self, t):
         self._validate_processor(t)
         self.processors[t].clear()
+
+    def add_callback(self, fn, cb_type):
+        if cb_type not in self.callbacks:
+            raise NotImplementedError("The callback type %s is not supported." % cb_type)
+        self.callbacks[cb_type].append(fn)
+
+    def emit_callback(self, cb_type):
+        for cb in self.callbacks[cb_type]:
+            cb()
 
     def add_processor(self, name, fn, t, text=None):
         self._validate_processor(t)
@@ -207,6 +217,7 @@ class Agent:
         if kwargs["terminals"]:
             self.metrics.done(episode=True)
             self.metrics.summarize(["reward", "steps"])
+            self.emit_callback("on_terminal")
 
         self._train_ready = self.batch.add(
             **self.data
@@ -287,6 +298,7 @@ class Agent:
 
         # Save policy into the kwargs dictionary for use in preprocessing etc.
         kwargs["policy"] = self.policy
+        kwargs.update(self._last_observation)
 
         # Retrieve batch
         batch = self.batch.get()
@@ -305,10 +317,11 @@ class Agent:
                 np.random.shuffle(batch_indices)
 
             # Iterate over mini-batches
-            for i in range(0, self.batch.counter, self.batch.mb_size):
+
+            for i in range(0, self.batch.counter, self.batch.batch_size):
 
                 # Sample indices for the mini-batch
-                mb_indexes = batch_indices[i:i + self.batch.mb_size]
+                mb_indexes = batch_indices[i:i + self.batch.batch_size]
 
                 # Cast all elements to numpy arrays
                 mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}

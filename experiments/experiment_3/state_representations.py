@@ -27,6 +27,33 @@ class BaseState:
         return self.get_shape()
 
 
+class StateFull(BaseState):
+
+    def generate(self, player):
+        vec_size = self.env.grid.width * self.env.grid.height
+        data = np.zeros(vec_size * 3)
+
+        # L1: Player
+        # L2: Opponents
+        # L3: TASK
+
+        # L1
+        if player.cell:
+            data[player.cell.i] = 1
+
+        # L2
+        opponents = [x for x in self.env.agents if x != player]
+        for opponent in opponents:
+            data[opponent.cell.i + (vec_size * 1)] = 1
+
+        # L3
+        if player.task:
+            task_coords = player.task.get_coordinates()
+            i = task_coords.x * self.env.grid.height + task_coords.y
+            data[i + (vec_size * 2)] = 1
+
+        return data
+
 class State0(BaseState):
     """Generate state representation of the environment."""
 

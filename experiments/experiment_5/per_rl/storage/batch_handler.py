@@ -1,20 +1,14 @@
-import time
-
-import tensorflow as tf
-import gym
 import numpy as np
-from absl import logging
 
 
 class DynamicBatch:
 
     def __init__(self, agent, **kwargs):
         self.agent = agent
-        self.episodic = self.agent.batch_mode == "episodic"
-        self.batch_size = 1000000 if self.episodic else self.agent.batch_size
-        self.n_mb = 1 if self.episodic else self.agent.mini_batches
-        self.mb_size = self.batch_size // self.n_mb
-
+        self.episodic = self.agent.buffer_mode == "episodic"
+        self.buffer_size = 1000000 if self.episodic else self.agent.buffer_size
+        self.batch_size = self.agent.batch_size
+        self.batch_count = 1 if self.episodic else int(self.buffer_size / self.batch_size)
         self.dtype = agent.dtype
 
         self.counter = 0
@@ -38,7 +32,7 @@ class DynamicBatch:
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
 
-        return self.counter == self.batch_size
+        return self.counter == self.buffer_size
 
     def get(self):
         return {k: np.asarray(v) for k, v in self.data.items()}

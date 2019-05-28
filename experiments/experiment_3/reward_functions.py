@@ -35,7 +35,7 @@ class RewardState:
         if self.is_closer:
             return 1
         else:
-            return -1
+            return 0
 
 
 rstate = RewardState()
@@ -48,13 +48,13 @@ def Reward0(player):
         terminal = False
     elif player.state in [Agent.PICKUP]:
         rstate.counter = 0
-        reward = 1 # Set back? TODO
+        reward = 1  # Set back? TODO
         terminal = False
     elif player.state in [Agent.DELIVERY]:
         reward = 1
-        terminal = True
+        terminal = False
     elif player.state in [Agent.DESTROYED]:
-        reward = -1
+        reward = -10
         terminal = True
     elif player.state in [Agent.INACTIVE]:
         reward = 0

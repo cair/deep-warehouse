@@ -25,8 +25,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 def main(argv):
     benchmark = False
     episodes = 130454535345
-    #env_name = "CartPole-v0"
-    env_name = "deep-logistics-normal-v0"
+    env_name = "CartPole-v0"
+    #env_name = "deep-logistics-normal-v0"
 
     def submit(args):
         AGENT, spec, episodes = args
@@ -40,7 +40,7 @@ def main(argv):
 
         # Control set for manhattan distance
         manhattan_control = ManhattanAgent.automate
-        is_deep_logisitcs =  "deep-logistics" in env_name
+        is_deep_logisitcs = "deep-logistics" in env_name
 
         while env.episode < episodes:
 
