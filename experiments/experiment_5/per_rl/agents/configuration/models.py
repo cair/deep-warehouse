@@ -273,12 +273,24 @@ class PPOPolicy(Policy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.p_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.p_2 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
+        self.p_1 = tf.keras.layers.Dense(
+            128,
+            activation="relu",
+            dtype=self.agent.dtype,
+            use_bias=False,
+        )
+        self.p_2 = tf.keras.layers.Dense(
+            128,
+            activation="relu",
+            dtype=self.agent.dtype,
+            use_bias=False,
+        )
         self.logits = tf.keras.layers.Dense(self.agent.action_space,
                                             dtype=self.agent.dtype,
                                             activation="linear",  # or tanh
-                                            name='policy_logits'
+                                            name='policy_logits',
+                                            use_bias=False,
+                                            kernel_initializer=tf.initializers.VarianceScaling(scale=0.01)
                                             )
 
         #self.v_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
@@ -286,6 +298,8 @@ class PPOPolicy(Policy):
         self.action_value = tf.keras.layers.Dense(1,
                                                   activation="linear",
                                                   name="values",
+                                                  use_bias=False,
+                                                  kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
                                                   dtype=self.agent.dtype)
 
     def call(self, inputs, **kwargs):

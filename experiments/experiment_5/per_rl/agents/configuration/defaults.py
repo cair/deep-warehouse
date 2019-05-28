@@ -57,7 +57,7 @@ PPO = dict(
 
     # Policy coefficients
     epsilon=0.2,  # Policy clipping factor
-    kl_coeff=0.2,  # TODO
+    kl_coeff=0.0,  # TODO
     kl_target=0.01,  # TODO
     entropy_coef=2.5e-3,  # Entropy should be 0.0 for continous action spaces.  # TODO
 
@@ -81,18 +81,18 @@ PPO = dict(
     # Policy definition
     policy=lambda agent: PPOPolicy(
         agent=agent,
-        optimizer=dict(
-            policy=tf.keras.optimizers.Adam(lr=3e-4),
-            value=tf.keras.optimizers.Adam(lr=3e-4),
-        )
-        #optimizer=tf.keras.optimizers.Adam(lr=0.0007)
+        #optimizer=dict(
+        #    policy=tf.keras.optimizers.Adam(lr=3e-4),
+        #    value=tf.keras.optimizers.Adam(lr=3e-4),
+        #)
+        optimizer=tf.keras.optimizers.Adam(lr=3e-4)
     ),
 
     # Policy update settings
     policy_update=dict(
         double=True,
         n_trainers=1,
-        interval=1,
+        interval=4,
         strategy="copy",  # copy, mean  # TODO wierd
         type="weights"  # weights, gradients  # TODO wierd
     )

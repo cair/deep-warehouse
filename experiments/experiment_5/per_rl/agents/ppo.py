@@ -158,9 +158,9 @@ class PPO(Agent):
         ))
 
     def entropy_loss(self, logits, **kwargs):
-        log_prob = tf.math.softmax(logits)
+        logp = tf.math.softmax(logits)
         return self.args["entropy_coef"] * tf.reduce_mean(
-            -tf.reduce_sum(log_prob * tf.math.log(log_prob + 1e-10), axis=1)
+            -tf.reduce_sum(logp * tf.math.log(logp + 1e-10), axis=1)
         )
 
     def mb_neglogp(self, old_logits, logits, actions, **kwargs):
