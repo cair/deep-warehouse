@@ -48,9 +48,10 @@ A2C = dict(
 
 PPO = dict(
 
-    # Generalized Advantage Function # TODO
-    gae=True,  #
+    # Generalized Advantage Function
+    gae=True,
     gae_lambda=0.95,
+    normalize_advantages=False,
 
     # Returns
     gamma=0.99,

@@ -274,13 +274,13 @@ class PPOPolicy(Policy):
         super().__init__(**kwargs)
 
         self.p_1 = tf.keras.layers.Dense(
-            128,
+            512,
             activation="relu",
             dtype=self.agent.dtype,
             use_bias=False,
         )
         self.p_2 = tf.keras.layers.Dense(
-            128,
+            512,
             activation="relu",
             dtype=self.agent.dtype,
             use_bias=False,

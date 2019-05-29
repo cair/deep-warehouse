@@ -48,7 +48,11 @@ def main(argv):
 
             if agent.epoch < curriculum_epochs and is_deep_logisitcs:
                 action = manhattan_control(env.env.agent, perform_action=False)
-            state1, reward, terminal = agent.step(action)
+            state1, reward, terminal, info = agent.step(action)
+
+            if is_deep_logisitcs and terminal:
+                agent.metrics.add("deliveries", info["deliveries"], ["sum"], "game", episode=True, epoch=False, total=False)
+                agent.metrics.add("pickups", info["pickups"], ["sum"], "game", episode=True, epoch=False, total=False)
 
             agent.observe(
                 actions=tf.one_hot(action, agent.action_space),

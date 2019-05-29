@@ -38,7 +38,7 @@ class Environment:
         # S, A, R, T
         #state = self.state
         #self.state = self.next_state
-        return self.state, self.reward, self.terminal
+        return self.state, self.reward, self.terminal, self.info
 
     def reset(self):
         return self.env.reset()

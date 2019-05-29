@@ -136,10 +136,10 @@ class Agent:
         self._env = env
 
     def step(self, action):
-        s1, r, t = self._env.step(action)
+        s1, r, t, info = self._env.step(action)
         self._last_observation["last_obs"] = s1
 
-        return s1, r, t
+        return s1, r, t, info
 
     def _validate_processor(self, t):
         if t not in Agent.SUPPORTED_PROCESSORS:

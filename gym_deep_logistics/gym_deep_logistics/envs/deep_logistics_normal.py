@@ -45,8 +45,15 @@ class DeepLogisticsNormal(gym.Env):
 
         state1 = self.sgen.generate(self.agent)
         reward, terminal = Reward0(self.agent)
+        if terminal:
+            info = dict(
+                deliveries=self.agent.total_deliveries,
+                pickups=self.agent.total_pickups
+            )
+        else:
+            info = None
 
-        return state1, reward, terminal, None
+        return state1, reward, terminal, info
 
     def reset(self):
         self.env.reset()

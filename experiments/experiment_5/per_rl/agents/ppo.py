@@ -15,6 +15,7 @@
 # https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
 
 # DO SOME https://github.com/ray-project/ray/blob/master/python/ray/rllib/agents/ppo/ppo.py
+import time
 
 import tensorflow as tf
 
@@ -37,12 +38,14 @@ from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 
 # PPO-CMA
 # https://www.reddit.com/r/reinforcementlearning/comments/boi4m0/ppocma_proximal_policy_optimization_with/
+from experiments.experiment_5.per_rl.distribution.categorical import Categorical
 from experiments.experiment_5.per_rl.utils.decorators import KeepLocals
 
 
 @DecoratedAgent
 class PPO(Agent):
     PARAMETERS = [
+        "normalize_advantages",
         "gae_lambda",
         "gae",
         "epsilon",
@@ -69,8 +72,8 @@ class PPO(Agent):
         self.add_callback(self.on_terminal, "on_terminal")
 
     def on_terminal(self):
-        self.metrics.add("value", self.data["old_values"], ["mean"], None, episode=True, epoch=False, total=False)
-
+        self.metrics.add("predicted_value", self.data["old_values"], ["mean"], "reward", episode=True, epoch=False,
+                         total=False)
 
     def _predict(self, inputs):
         pred = super()._predict(inputs)
@@ -80,8 +83,6 @@ class PPO(Agent):
 
         #  return np.random.choice(
         #             np.arange(self._env.n_actions), p=probabilities[0])
-
-
 
         return sampled.numpy()
 
@@ -94,7 +95,8 @@ class PPO(Agent):
                     -self.args["vf_clip_param"],
                     self.args["vf_clip_param"]
                 )
-            vf_clipfrac = tf.reduce_mean(tf.cast(tf.greater(tf.abs(v_pred_clipped - 1.0), self.args["vf_clip_param"]), dtype=tf.float64))
+            vf_clipfrac = tf.reduce_mean(
+                tf.cast(tf.greater(tf.abs(v_pred_clipped - 1.0), self.args["vf_clip_param"]), dtype=tf.float64))
             self.metrics.add("vf_clipfrac", vf_clipfrac, ["mean"], "train", epoch=True)
             vf_losses_1 = tf.square(values - returns)
             vf_losses_2 = tf.square(v_pred_clipped - returns)
@@ -103,48 +105,39 @@ class PPO(Agent):
         else:
 
             vf_loss = tf.reduce_mean(tf.math.squared_difference(returns, tf.reduce_sum(values, axis=0)))
-            #vf_loss = tf.losses.mean_squared_error(returns, values)
+            # vf_loss = tf.losses.mean_squared_error(returns, values)
 
         return vf_loss * self.args["vf_coeff"]
 
-    @KeepLocals(
-        include=["kl"],
-        attribute="udata"
-    )
-    def kl_loss(self, neglogp_old, neglogp_new, old_logits, logits, actions, **kwargs):
-        #action_kl = tf.losses.kullback_leibler_divergence(neglogp_old, neglogp_new)
-        #print(action_kl)
+    # @KeepLocals(
+    #    include=["kl"],
+    #    attribute="udata"
+    # )
+    def kl_loss(self, old_logits, logits, actions, **kwargs):
+        # action_kl = tf.losses.kullback_leibler_divergence(neglogp_old, neglogp_new)
+        # print(action_kl)
         # Metrics
-        #approxkl = .5 * tf.reduce_mean(tf.square(neglogpac_new - neglogpac_old))
-        #self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
+        # approxkl = .5 * tf.reduce_mean(tf.square(neglogpac_new - neglogpac_old))
+        # self.metrics.add("approxkl", approxkl, ["mean"], "train", epoch=True)
 
         logp = tf.math.softmax(logits, axis=1) * actions
         logq = tf.math.softmax(old_logits, axis=1) * actions
 
         kl = tf.reduce_mean(tf.reduce_sum(tf.math.softmax(logits) * (logp - logq), axis=1))
 
+        # action_kl = tf.reduce_mean(tf.square(neglogp_new - neglogp_old))  # APPROX VERSION?
 
-        #action_kl = tf.reduce_mean(tf.square(neglogp_new - neglogp_old))  # APPROX VERSION?
-
-        #print(action_kl)
+        # print(action_kl)
         return kl * self.args["kl_coeff"]
 
-    def policy_loss(self, neglogp_old, neglogp_new, advantages, **kwargs):
+    def policy_loss(self, neglogpac_old, neglogpac_new, advantages, **kwargs):
 
-        #surr1 = tf.exp(neglogp_new - tf.stop_gradient(neglogp_old))
-        surr1 = neglogp_new / (neglogp_old + 1e-10)
-
+        surr1 = tf.exp(tf.stop_gradient(neglogpac_old) - neglogpac_new)
         surr2 = tf.clip_by_value(
             surr1,
             1.0 - self.args["epsilon"],
             1.0 + self.args["epsilon"]
         )
-
-        #surr2 = tf.clip_by_value(
-        #    surr1,
-        #    1.0 - self.args["epsilon"],
-        #    1.0 + self.args["epsilon"]
-        #)
 
         surr_clip_frac = tf.reduce_mean(
             tf.cast(tf.greater(tf.abs(surr1 - 1.0), self.args["epsilon"]), dtype=tf.float64)
@@ -152,38 +145,20 @@ class PPO(Agent):
 
         self.metrics.add("policy_clipfrac", surr_clip_frac, ["mean"], "train", epoch=True)
 
-        return -tf.reduce_mean(tf.minimum(
-            surr1 * advantages,
-            surr2 * advantages
+        return -tf.reduce_mean(tf.maximum(
+            surr1 * -advantages,
+            surr2 * -advantages
         ))
 
     def entropy_loss(self, logits, **kwargs):
-        logp = tf.math.softmax(logits)
-        return self.args["entropy_coef"] * tf.reduce_mean(
-            -tf.reduce_sum(logp * tf.math.log(logp + 1e-10), axis=1)
-        )
+        return self.args["entropy_coef"] * -tf.reduce_mean(Categorical.entropy(logits))
 
     def mb_neglogp(self, old_logits, logits, actions, **kwargs):
 
         return dict(
-            neglogp_old=tf.reduce_sum(tf.math.softmax(old_logits) * actions, axis=1),
-            neglogp_new=tf.reduce_sum(tf.math.softmax(logits) * actions, axis=1)
+            neglogpac_old=Categorical.neglogpac(old_logits, actions),
+            neglogpac_new=Categorical.neglogpac(logits, actions)
         )
-
-    def mb_advantages(self, returns, values, old_values, **kwargs):
-
-        self.metrics.add(
-            "explained-variance",
-            utils.explained_variance(old_values, returns), ["mean"], "loss", epoch=True, total=True)
-
-        # Returns = R + yV(s')
-        advantage = np.asarray(returns - values)
-        # Normalize the advantages
-        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-
-        self.metrics.add("advantage", advantage.mean(), ["mean"], "train", epoch=True)
-
-        return advantage
 
     def generalized_advantage_estimation(self, old_values, last_obs, policy, rewards, terminals, **kwargs):
 
@@ -194,13 +169,11 @@ class PPO(Agent):
         adv = np.zeros_like(rewards)
         lastgaelam = 0
         for t in reversed(range(self.batch.counter)):
-            nextnonterminal = 1 - terminal[t+1]
-            delta = rewards[t] + gamma * (V[t+1] * nextnonterminal) - V[t]
+            nextnonterminal = 1 - terminal[t + 1]
+            delta = rewards[t] + gamma * (V[t + 1] * nextnonterminal) - V[t]
             adv[t] = lastgaelam = delta + gamma * lam * nextnonterminal * lastgaelam
 
         returns = adv + old_values
-
-        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
         return dict(
             advantages=adv,
@@ -217,23 +190,23 @@ class PPO(Agent):
             discounted_rewards[i] = cum_r
             advantage[i] = cum_r + old_values[i]
 
-        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-
         return dict(
             advantages=advantage,
             returns=discounted_rewards
         )
 
     def advantages(self, **kwargs):
-        if self.args["gae"]:
-            return self.generalized_advantage_estimation(**kwargs)
-        else:
-            return self.discounted_returns(**kwargs)
+
+        data = self.generalized_advantage_estimation(**kwargs) if self.args["gae"] else \
+            self.discounted_returns(**kwargs)
+
+        if self.args["normalize_advantages"]:
+            data["advantages"] = (data["advantages"] - data["advantages"].mean()) / (data["advantages"].std() + 1e-8)
+
+        return data
 
 
     def post_update_kl(self, **kwargs):
-
         return {
 
         }
-
