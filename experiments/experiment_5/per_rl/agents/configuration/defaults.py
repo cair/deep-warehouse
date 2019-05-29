@@ -51,7 +51,7 @@ PPO = dict(
     # Generalized Advantage Function
     gae=True,
     gae_lambda=0.95,
-    normalize_advantages=False,
+    normalize_advantages=True,
 
     # Returns
     gamma=0.99,

@@ -65,7 +65,7 @@ class PPO(Agent):
         self.add_processor("neglogp", self.mb_neglogp, "mini-batch")
         self.add_processor("update_kl", self.post_update_kl, "post")
 
-        self.add_processor("action_kl_loss", self.kl_loss, "loss", text="Action KL Loss")
+        #self.add_processor("action_kl_loss", self.kl_loss, "loss", text="Action KL Loss")
         self.add_processor("policy_loss", self.policy_loss, "loss", text="Policy loss of PPO")
         self.add_processor("value_loss", self.value_loss, "loss", text="Action loss of PPO")
         self.add_processor("entropy_loss", self.entropy_loss, "loss", text="Action loss of PPO")
@@ -80,10 +80,6 @@ class PPO(Agent):
         logits = pred["logits"]
 
         sampled = tf.squeeze(tf.random.categorical(logits, 1))
-
-        #  return np.random.choice(
-        #             np.arange(self._env.n_actions), p=probabilities[0])
-
         return sampled.numpy()
 
     def value_loss(self, old_values, values, returns, **kwargs):
@@ -145,9 +141,9 @@ class PPO(Agent):
 
         self.metrics.add("policy_clipfrac", surr_clip_frac, ["mean"], "train", epoch=True)
 
-        return -tf.reduce_mean(tf.maximum(
-            surr1 * -advantages,
-            surr2 * -advantages
+        return -tf.reduce_mean(tf.minimum(
+            surr1 * advantages,
+            surr2 * advantages
         ))
 
     def entropy_loss(self, logits, **kwargs):
