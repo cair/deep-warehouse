@@ -1,34 +1,33 @@
 import sys
+
+from deep_logistics.scheduler import OnDemandScheduler
+from deep_logistics.spawn_strategy import LocationSpawnStrategy
+from experiments.experiment_3.state_representations import State0
+
 sys.path.append("/home/per/GIT/deep-logistics")
 sys.path.append("/home/per/IdeaProjects/deep_logistics")
 sys.path.append("/home/per/GIT/code/deep_logistics")
 sys.path.append("/root")
 from deep_logistics.environment import Environment
 from deep_logistics.agent import InputAgent
-from state_representations import State0
 
 if __name__ == "__main__":
-    env = Environment(
-        height=10,
-        width=10,
+    env =  Environment(
+        height=5,
+        width=5,
         depth=3,
-        agents=2,
-        agent_class=InputAgent,
-        draw_screen=True,
-        tile_height=32,
-        tile_width=32,
-        #scheduler=RandomScheduler,
-        ups=60,
+        ups=None,
         ticks_per_second=1,
-        spawn_interval=1,  # In steps
-        task_generate_interval=1,  # In steps
-        task_assign_interval=1,  # In steps
-        delivery_points=[
-            (7, 2),
-            (2, 2),
-            (2, 7),
-            (7, 7)
-        ],
+        taxi_n=1,
+        taxi_agent=InputAgent,
+        taxi_respawn=False,
+        taxi_control="constant",
+        scheduler=OnDemandScheduler,
+        delivery_locations=None,
+        spawn_strategy=LocationSpawnStrategy,
+        graphics_render=True,
+        graphics_tile_height=64,
+        graphics_tile_width=64
     )
 
     env.deploy_agents()

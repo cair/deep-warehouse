@@ -17,10 +17,11 @@ class DeepLogisticsNormal(gym.Env):
             width=5,
             depth=3,
             ups=None,
-            ticks_per_second=10,
+            ticks_per_second=1,
             taxi_n=1,
             taxi_agent=None,
             taxi_respawn=False,
+            taxi_control="constant",
             scheduler=OnDemandScheduler,
             delivery_locations=None,
             spawn_strategy=LocationSpawnStrategy,
@@ -32,7 +33,8 @@ class DeepLogisticsNormal(gym.Env):
         self.agent = self.env.get_agent(0)
         self.sgen = StateFull(self.env)
         self._seed = 0
-        self.action_space = self.env.action_space
+
+        self.action_space = gym.spaces.Discrete(self.env.action_space.n)
         self.observation_space = self.sgen.generate(self.agent).shape
 
     def step(self, action):

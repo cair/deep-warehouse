@@ -80,7 +80,15 @@ class Agent:
 
         """Define properties."""
         self.obs_space = obs_space
-        self.action_space = action_space
+
+        if isinstance(action_space, gym.spaces.Discrete):
+            self.action_space = action_space.n
+            self.action_space_type = "discrete"
+        elif isinstance(action_space, gym.spaces.Box):
+            self.action_space = action_space.shape[0]
+            self.action_space_type = "continuous"
+        else:
+            raise NotImplementedError("Action-space of type %s is not supported." % type(action_space))
 
         # TODO - Define as mixin?
         self.buffer_mode = buffer_mode

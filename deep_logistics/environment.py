@@ -24,7 +24,8 @@ class Environment:
                  ticks_per_second=10,
                  taxi_n=1,
                  taxi_agent=ManhattanAgent,
-                 taxi_respawn=False,  # TODO - There is no case where this will happen in reality
+                 taxi_respawn=False,
+                 taxi_control="constant",
                  scheduler=OnDemandScheduler,
                  delivery_locations=None,
                  spawn_strategy=LocationSpawnStrategy,
@@ -39,6 +40,7 @@ class Environment:
         self.depth = depth
 
         self.taxi_respawn = taxi_respawn
+        self.taxi_control = taxi_control
 
         """Updates per second."""
         self.ups = ups

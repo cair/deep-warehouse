@@ -91,17 +91,17 @@ class PPO(Agent):
                     -self.args["vf_clip_param"],
                     self.args["vf_clip_param"]
                 )
-            vf_clipfrac = tf.reduce_mean(
-                tf.cast(tf.greater(tf.abs(v_pred_clipped - 1.0), self.args["vf_clip_param"]), dtype=tf.float64))
-            self.metrics.add("vf_clipfrac", vf_clipfrac, ["mean"], "train", epoch=True)
             vf_losses_1 = tf.square(values - returns)
             vf_losses_2 = tf.square(v_pred_clipped - returns)
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
-        else:
+            # Metrics
+            vf_clipfrac = tf.reduce_mean(
+                tf.cast(tf.greater(tf.abs(v_pred_clipped - 1.0), self.args["vf_clip_param"]), dtype=tf.float64))
+            self.metrics.add("vf_clipfrac", vf_clipfrac, ["mean"], "train", epoch=True)
 
-            vf_loss = tf.reduce_mean(tf.math.squared_difference(returns, tf.reduce_sum(values, axis=0)))
-            # vf_loss = tf.losses.mean_squared_error(returns, values)
+        else:
+            vf_loss = tf.losses.mean_squared_error(returns, values)
 
         return vf_loss * self.args["vf_coeff"]
 

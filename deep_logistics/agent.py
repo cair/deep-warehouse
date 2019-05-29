@@ -48,9 +48,16 @@ class Agent:
         self.action_intensity = 0  # Distance moved in the direction
         self.action_progress = 0  # Accumulator for progress
 
-        self.AGENT_ACCELERATION = 0.33
-        self.AGENT_DEACCELERATION = 0.25
-        self.AGENT_MAX_SPEED = 1.0
+        if self.environment.taxi_control == "constant":
+            self.AGENT_ACCELERATION = 1.0
+            self.AGENT_DEACCELERATION = 1.0
+            self.AGENT_MAX_SPEED = 1.0
+        elif self.environment.taxi_control == "constant_acceleration":
+            self.AGENT_ACCELERATION = 0.33
+            self.AGENT_DEACCELERATION = 0.25
+            self.AGENT_MAX_SPEED = 1.0
+        else:
+            raise NotImplementedError("The taxi_control state %s is not implemented!" % self.environment.taxi_control)
 
         self.total_deliveries = 0
         self.total_pickups = 0
@@ -129,7 +136,10 @@ class Agent:
         if action is ActionSpace.NOOP:
             return
 
-        elif self.action is None or (self.action != action and self.state == Agent.IDLE):
+        if self.action is None:
+            self.action = action
+
+        if self.action != action and self.state == Agent.IDLE:
             self.action = action
 
         elif self.action != action:
