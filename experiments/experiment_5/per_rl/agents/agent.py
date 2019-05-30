@@ -136,7 +136,6 @@ class Agent:
 
         self._env = None
         self._last_observation = {}
-        self._train_ready = False
 
     def set_env(self, env):
         if self._env is not None:
@@ -227,9 +226,7 @@ class Agent:
             self.metrics.summarize(["reward", "steps"])
             self.emit_callback("on_terminal")
 
-        self._train_ready = self.batch.add(
-            **self.data
-        )
+        self.batch.add(**self.data)
 
     def _backprop(self, **kwargs):
 
@@ -301,7 +298,7 @@ class Agent:
         During preprocessing the kwargs is filled with new data, typically advantages... etc
         :return:
         """
-        if not self._train_ready:
+        if not self.batch.ready():
             return False
 
         # Save policy into the kwargs dictionary for use in preprocessing etc.

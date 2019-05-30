@@ -3,9 +3,9 @@ from absl import flags, app
 from deep_logistics.action_space import ActionSpace
 from deep_logistics.agent import ManhattanAgent
 from experiments.experiment_5.environment import Environment
-
+from experiments.experiment_5.per_rl.agents.ppo.agent import PPOAgent
 from experiments.experiment_5.per_rl.agents.a2c import A2C
-from experiments.experiment_5.per_rl.agents.ppo import PPO
+
 from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 FLAGS = flags.FLAGS
 
@@ -25,10 +25,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 def main(argv):
     benchmark = False
     episodes = 130454535345
-    #env_name = "CartPole-v0"
+    env_name = "CartPole-v0"
     #env_name = "MountainCarContinuous-v0"
     #env_name = "Acrobot-v1"
-    env_name = "deep-logistics-normal-v0"
+    #env_name = "deep-logistics-normal-v0"
 
     def submit(args):
         AGENT, spec, episodes = args
@@ -66,7 +66,7 @@ def main(argv):
 
     env = gym.make(env_name)
     if not benchmark:
-        submit((PPO, dict(
+        submit((PPOAgent, dict(
             obs_space=env.observation_space,
             action_space=env.action_space,
             tensorboard_enabled=True,

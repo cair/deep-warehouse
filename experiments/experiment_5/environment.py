@@ -2,9 +2,11 @@ import time
 
 import gym
 from gym_deep_logistics import gym_deep_logistics
-
+import tensorflow as tf
 import ray
 import sys
+
+
 
 class Environment:
 
@@ -57,19 +59,27 @@ class Agent:
 
         self.total_steps = 0
 
-        self.remotes = [dict(
+        self.local = dict(
             actor=self.createActor(),
             tasks=[],
             accumulated_steps=0
-        ) for _ in range(self.num_environments + 1)]
-        self.local = self.remotes.pop()
+        )
+        self.local_task = None
 
-    def createActor(self):
-        return EnvActor.remote(self.environment, self.algorithm, self.algorithm_config)
+        self.remotes = [dict(
+            actor=self.createActor(local=self.local["actor"]),
+            tasks=[],
+            accumulated_steps=0
+        ) for _ in range(self.num_environments)]
+
+    def createActor(self, local=None):
+        return EnvActor.remote(self.environment, self.algorithm, self.algorithm_config, local)
 
     def train(self):
 
         for remote in self.remotes:
+            # Inference on remotes
+
             actor = remote["actor"]
             tasks = remote["tasks"]
 
@@ -79,61 +89,105 @@ class Agent:
                 tasks.extend([actor.train.remote() for _ in range(n_new)])
 
             completed_ids, _ = ray.wait(tasks, self.task_queue_size, timeout=.01)
+
             for completed_id in completed_ids:
                 episode_steps = ray.get(completed_id)  # the completed task should return number of steps performed
-                # during that episode.
-
                 self.total_steps += episode_steps
                 remote["accumulated_steps"] += episode_steps
-
                 tasks.remove(completed_id)
-            #print("Completed: ", str(len(completed_ids)), "| Incomplete: ", str(len(_)))
 
+        # Process global worker
+        if self.local_task is None:
+            self.local_task = self.local["actor"].train.remote()
 
-        local_actor = self.local["actor"]
+        local_complete, _ = ray.wait([self.local_task], 1, timeout=.01)
+        if len(local_complete) > 0:
+            # Training task is done. Update weights on remotes
+            self.local_task = None
 
-        time.sleep(.5)
+            if ray.get(local_complete[0]):
+
+                for remote in self.remotes:
+                    remote["actor"].set_weights.remote(
+                        self.local["actor"].get_weights.remote()
+                    )
+
+        time.sleep(.01)
+
 
 
 @ray.remote
 class EnvActor:
 
-    def __init__(self, env, agent, agent_config):
+    def __init__(self, env, agent, agent_config, remote=None):
         """1. If env is a string, use as gym environment. If its a class, use "as is"."""
         self.env = Environment(env)
+        self.episodes = 1000
+        self.remote = remote
+
+        if remote:
+            self.has_remote_agent = True
+        else:
+            self.has_remote_agent = False
 
         """Agent Class."""
         self._agent_class = agent
 
-        """Agent Configuration"""
-        self.agent_config = agent_config
-
         """Initialize Agent"""
-        self.agent = self._agent_class(**self.agent_config)
+        self.agent = self._agent_class(**agent_config)
 
-        self.episodes = 1000
+    def set_weights(self, weights):
+        print("Setting weights.")
+        self.agent.policy.master.set_weights(weights)
+        self.agent.batch.done()
+        return True
 
     def get_weights(self):
-        pass
+        return self.agent.policy.master.get_weights()
 
-    def set_weights(self):
-        pass
+    def predict(self, state):
+        return self.agent.predict(state)
+
+    def push_batch(self, batch):
+
+        self.agent.batch.extend(batch)
 
     def train(self):
         return self.run_episode()
 
     def run_episode(self):
+        if self.has_remote_agent:
+            return self.explorer()
+        else:
+            return self.trainer()
+
+    def trainer(self):
+        if not self.agent.batch.ready():
+            return False
+        print("")
+        self.agent.train()
+        return True
+
+    def explorer(self):
         steps = 0
         self.env.reset()
         terminal = False
         while not terminal:
+
             action = self.agent.predict(self.env.state)
-            state1, reward, terminal = self.env.step(action)
+            state1, reward, terminal, _ = self.env.step(action)
             self.agent.observe(
-                obs1=state1,
-                reward=reward,
-                terminal=terminal
+                actions=tf.one_hot(action, self.agent.action_space),
+                rewards=reward,
+                terminals=terminal
             )
             steps += 1
+
+            self.handle_batch()
+
         return steps
 
+    def handle_batch(self):
+        if self.has_remote_agent and self.agent.batch.ready():
+            self.remote.push_batch.remote(self.agent.batch.get())
+            self.agent.batch.done()
