@@ -71,10 +71,10 @@ PPO = dict(
 
     # Sampling and Training
     buffer_mode="steps",
-    buffer_size=2048,  # 2048
+    buffer_size=1024,  # 2048
     batch_shuffle=True,
     batch_size=64,
-    epochs=5,
+    epochs=10,
 
     # Optimization
     grad_clipping=0.2,  # TODO.
