@@ -36,7 +36,7 @@ def main(argv):
         curriculum_epochs = 0
 
         env = Environment(env_name)
-        agent.set_env(env)
+        agent.env = env
 
         # Control set for manhattan distance
         manhattan_control = ManhattanAgent.automate
@@ -62,12 +62,9 @@ def main(argv):
 
             agent.train()
 
-    env = gym.make(env_name)
-
     if not benchmark:
         submit((PPO, dict(
-            obs_space=env.observation_space,
-            action_space=env.action_space.n,
+            env=env_name,
             tensorboard_enabled=True,
             baseline="reward_mean",
         ), episodes))

@@ -1,3 +1,4 @@
+
 import numpy as np
 
 
@@ -32,10 +33,21 @@ class DynamicBatch:
             except KeyError:
                 raise KeyError("In order to use episodic mode, 'terminal' key must be present in the dataset!")
 
-        return self.counter == self.buffer_size
+        return self.counter >= self.buffer_size
+
+    def ready(self):
+        return self.counter >= self.buffer_size
 
     def get(self):
         return {k: np.asarray(v) for k, v in self.data.items()}
+
+    def extend(self, data):
+        for k, v in data.items():
+            if k not in self.data:
+                self.data[k] = []
+            self.data[k].extend(v)
+
+        self.counter += len(data[list(data.keys())[0]])
 
     def done(self):
         self.data = {k: [] for k in self.data.keys()}

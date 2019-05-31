@@ -51,8 +51,7 @@ class Agent:
     DEFAULTS = dict()
 
     def __init__(self,
-                 obs_space: gym.spaces.Box,
-                 action_space: gym.spaces.Discrete,
+                 env,
                  policy,
                  policy_update,
                  buffer_mode: str = "episodic",
@@ -79,8 +78,13 @@ class Agent:
             writer.set_as_default()
 
         """Define properties."""
-        self.obs_space = obs_space
-        self.action_space = action_space
+        if isinstance(env, str):
+            self.env = gym.make(env)
+        else:
+            self.env = env
+
+        self.obs_space = self.env.observation_space
+        self.action_space = self.env.action_space.n  # TODO
 
         # TODO - Define as mixin?
         self.buffer_mode = buffer_mode
@@ -119,24 +123,14 @@ class Agent:
 
         self.batch = DynamicBatch(
             agent=self,
-            obs_space=obs_space,
-            action_space=action_space,
             batch_size=batch_size
         )
 
         self.epoch = 0
-
-        self._env = None
         self._last_observation = {}
-        self._train_ready = False
-
-    def set_env(self, env):
-        if self._env is not None:
-            raise UserWarning("You are now overriding existing env %s. Beware!" % env.__class__.__name__)
-        self._env = env
 
     def step(self, action):
-        s1, r, t, info = self._env.step(action)
+        s1, r, t, info = self.env.step(action)
         self._last_observation["last_obs"] = s1
 
         return s1, r, t, info
@@ -219,62 +213,11 @@ class Agent:
             self.metrics.summarize(["reward", "steps"])
             self.emit_callback("on_terminal")
 
-        self._train_ready = self.batch.add(
+        self.batch.add(
             **self.data
         )
 
-    def _backprop(self, **kwargs):
-
-        total_loss = 0
-        losses = []
-        for policy_train in self.policy.slaves:
-
-            """Run all loss functions"""
-            with tf.GradientTape() as tape:
-
-                # Do prediction using current slave policy, add this to the kwargs term.
-                kwargs.update(policy_train(**kwargs))
-
-                # Do preprossessing of mini-batch data
-                self._preprocessing(kwargs, ptype="mini-batch")
-
-                # Run all loss functions
-                for loss_name, loss_fn in self.processors["loss"].items():
-
-                    # Perform loss calculation
-                    loss = loss_fn(**kwargs)
-
-                    # Add metric for current loss
-                    self.metrics.add(policy_train.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
-
-                    # Accumulate losses
-                    total_loss += loss
-                    losses.append(loss)
-
-            # Calculate the gradient of this backward pass.
-            grads = tape.gradient(total_loss, policy_train.trainable_variables)
-
-            # Clip gradients if enabled.
-            if self.grad_clipping is not None:
-                grads, _grad_norm = tf.clip_by_global_norm(grads, self.grad_clipping)
-
-            # Save the calculated gradients inside the policy instance
-            policy_train.set_grads(grads)
-
-            """Diagnostics"""
-            #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
-            #self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["mean"],
-            #                 "gradients", epoch=True)
-
-        # Optimize all of the policies
-        self.policy.optimize()
-
-        # postprocess the data
-        self._preprocessing(kwargs, ptype="post")
-
-        return np.asarray(losses)
-
-    def _preprocessing(self, batch, ptype, **kwargs):
+    def preprocess(self, batch, ptype, **kwargs):
         preprocess_fns = self.processors[ptype]
 
         # Preprocessing of data prior to training
@@ -287,13 +230,13 @@ class Agent:
                 batch[preprocess_name] = preprocess_res
 
     #@Benchmark
-    def train(self, **kwargs):
+    def train(self, optimize=True, **kwargs):
         """
         :param kwargs: Kwargs is used throughout the training process.
         During preprocessing the kwargs is filled with new data, typically advantages... etc
         :return:
         """
-        if not self._train_ready:
+        if not self.batch.ready():
             return False
 
         # Save policy into the kwargs dictionary for use in preprocessing etc.
@@ -303,11 +246,11 @@ class Agent:
         # Retrieve batch
         batch = self.batch.get()
 
-        # Preprocess the data
-        self._preprocessing(batch, ptype="batch", **kwargs)
-
         # Retrieve batch indices for this batch
         batch_indices = np.arange(self.batch.counter)
+
+        # Preprocess the data
+        self.preprocess(batch, ptype="batch", **kwargs)
 
         # Run number of epochs on the batch
         for epoch in range(self.epochs):
@@ -316,17 +259,23 @@ class Agent:
             if self.batch_shuffle:
                 np.random.shuffle(batch_indices)
 
-            # Iterate over mini-batches
+            # Construct batch data for the epoch
+            batch_data = [{k: np.asarray(v)[batch_indices[i:i + self.batch.batch_size]] for k, v in batch.items()} for i in range(0, self.batch.counter, self.batch.batch_size)]
 
-            for i in range(0, self.batch.counter, self.batch.batch_size):
+            for b in batch_data:
+                losses, gradients = self.compute_losses(**b, **kwargs)
+                self.apply_gradients(gradients=gradients[0])
+                self.policy.optimize()
 
-                # Sample indices for the mini-batch
-                mb_indexes = batch_indices[i:i + self.batch.batch_size]
+            #losses, gradients = zip(*[self.compute_losses(**batch, **kwargs) for batch in batch_data])
+            #self.apply_gradients(gradients=gradients)
 
-                # Cast all elements to numpy arrays
-                mb = {k: np.asarray(v)[mb_indexes] for k, v in batch.items()}
+            # Optimize all of the policies
+            #if optimize:
+            #    self.policy.optimize()
 
-                losses = self._backprop(**mb, **kwargs)
+            # postprocess the data
+            self.preprocess(kwargs, ptype="post")
 
         self.metrics.add("epochs", 1, ["sum"], "time/training", total=True, episode=True)
         self.metrics.done(epoch=True)
@@ -341,3 +290,55 @@ class Agent:
         #self.metrics.add("backprop", time.perf_counter() - train_start, ["mean"], "time", epoch=True)
 
         return losses
+
+    def compute_losses(self, **kwargs):
+        total_loss = 0
+        losses = []
+        gradients = []
+        for policy_train in self.policy.slaves:
+            """Run all loss functions"""
+            with tf.GradientTape() as tape:
+
+                # Do prediction using current slave policy, add this to the kwargs term.
+                kwargs.update(policy_train(**kwargs))
+
+                # Do preprossessing of mini-batch data
+                self.preprocess(kwargs, ptype="mini-batch")
+
+                # Run all loss functions
+                for loss_name, loss_fn in self.processors["loss"].items():
+
+                    # Perform loss calculation
+                    loss = loss_fn(**kwargs)
+
+                    # Add metric for current loss
+                    self.metrics.add(policy_train.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
+
+                    # Accumulate losses
+                    total_loss += loss
+                    losses.append(loss)
+
+                # Calculate the gradient of this backward pass.
+                grads = tape.gradient(losses, policy_train.trainable_variables)
+                gradients.append(grads)
+
+        return total_loss, gradients
+
+    def apply_gradients(self, gradients):
+
+        #gradients = [grads[0] for grads in gradients]
+        #gradients = [tf.reduce_mean(grads, axis=0) for grads in zip(*gradients)]
+
+        # Clip gradients if enabled.
+        if self.grad_clipping is not None:
+            gradients, _grad_norm = tf.clip_by_global_norm(gradients, self.grad_clipping)
+
+        for policy_train in self.policy.slaves:
+            # Save the calculated gradients inside the policy instance
+            policy_train.set_grads(gradients)
+
+#Diagnostics
+#self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
+#self.metrics.add("l2", np.mean([np.sqrt(np.mean(np.square(grad))) for grad in grads]), ["mean"],
+#                 "gradients", epoch=True)
+
