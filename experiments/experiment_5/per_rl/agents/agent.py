@@ -181,6 +181,7 @@ class Agent:
         self.data["inputs"] = inputs
 
         pred = self.policy(inputs)
+
         self.data.update({
             "old_%s" % k: v for k, v in pred.items()
         })
@@ -291,7 +292,7 @@ class Agent:
             with tf.GradientTape() as tape:
 
                 # Do prediction using current slave policy, add this to the kwargs term.
-                kwargs.update(policy_train(**kwargs))
+                kwargs.update(policy_train(**kwargs, training=True))
 
                 # Do preprossessing of mini-batch data
                 self.preprocess(kwargs, ptype="mini-batch")
@@ -310,7 +311,12 @@ class Agent:
                     losses.append(loss)
 
                 # Calculate the gradient of this backward pass.
-                grads = tape.gradient(losses, policy_train.trainable_variables)
+                grads = tape.gradient(
+                    losses,
+                    policy_train.model.trainable_variables,
+                    unconnected_gradients=tf.UnconnectedGradients.ZERO
+                )
+
                 gradients.append(grads)
 
         return total_loss, gradients

@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.training.tracking.data_structures import _DictWrapper
-
+import numpy as np
 from experiments.experiment_5.per_rl import utils
 
 
@@ -93,7 +93,8 @@ class PolicyManager:
                 self.master.set_weights(weights)
             else:
                 for trainer in self.slaves:
-                    self.master.set_weights(trainer.get_weights())
+
+                    self.master.model.set_weights(trainer.model.get_weights())
 
         else:
             raise NotImplementedError("The policy update strategy %s is not implemented for the BaseAgent." % self.strategy)
@@ -123,7 +124,7 @@ class PolicyManager:
             self._master_optimize()
 
 
-class Policy(tf.keras.models.Model):
+class Policy:
     DEFAULTS = dict()
     arguments = utils.arguments
 
@@ -132,13 +133,19 @@ class Policy(tf.keras.models.Model):
                  alias="root",
                  optimizer=tf.keras.optimizers.RMSprop(lr=0.0001),
                  ):
-        super(Policy, self).__init__()
+
         self.alias = alias
         self.agent = agent
         self.optimizer = optimizer
         self.i = 0
 
         self.grads = None
+
+    def __call__(self, *args, **kwargs):
+        return self.call(*args, **kwargs)
+
+    def call(self, inputs):
+        raise NotImplementedError("Call must be implemented!")
 
     def reset(self):
         self.grads = None
@@ -200,7 +207,7 @@ class Policy(tf.keras.models.Model):
         else:
             # Only a single optimizer for the whole model
             # Apply the gradients directly.
-            self.optimizer.apply_gradients(zip(self.grads, self.trainable_variables))
+            self.optimizer.apply_gradients(zip(self.grads, self.model.trainable_variables))
 
             # Decay learning rate (if set)
             self.optimizer.lr = self.optimizer.lr - (self.optimizer.lr * self.optimizer.decay)
@@ -272,65 +279,39 @@ class PPOPolicy(Policy):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        inputs = tf.keras.Input(shape=self.agent.obs_space.shape)
+        x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(inputs)
+        x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(x)
 
-        self.p_1 = tf.keras.layers.Dense(
-            512,
-            activation="relu",
-            dtype=self.agent.dtype,
-            use_bias=False,
-        )
-        self.p_2 = tf.keras.layers.Dense(
-            512,
-            activation="relu",
-            dtype=self.agent.dtype,
-            use_bias=False,
-        )
-        self.logits = tf.keras.layers.Dense(self.agent.action_space,
-                                            dtype=self.agent.dtype,
-                                            activation="linear",  # or tanh
-                                            name='policy_logits',
-                                            use_bias=False,
-                                            kernel_initializer=tf.initializers.VarianceScaling(scale=0.01)
-                                            )
+        value = tf.keras.layers.Dense(
+            1,
+            kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
+            activation="linear"
+        )(x)
 
-        #self.v_1 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        #self.v_2 = tf.keras.layers.Dense(128, activation="relu", dtype=self.agent.dtype)
-        self.action_value = tf.keras.layers.Dense(1,
-                                                  activation="linear",
-                                                  name="values",
-                                                  use_bias=False,
-                                                  kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
-                                                  dtype=self.agent.dtype)
+        logits = tf.keras.layers.Dense(
+            self.agent.action_space,
+            kernel_initializer=tf.initializers.VarianceScaling(scale=0.01),
+            use_bias=False,
+            activation="linear"
+        )(x)
+
+
+        p = tf.keras.layers.Softmax(name="logp")(logits)
+        logp = tf.keras.layers.Lambda(lambda d: tf.keras.backend.log(d))(p)
+        action = tf.keras.layers.Lambda(lambda d: tf.random.categorical(d, 1), name="sample_action")(logp)
+        neglogpac = tf.keras.layers.Lambda(lambda d: -d[0] * tf.one_hot(d[1][0], self.agent.action_space))([logp, action])
+
+        self.model = tf.keras.Model(inputs=inputs, outputs=[logits, neglogpac, value, action])
+
+        #self.model = tf.keras.Model(inputs=inputs, outputs=[logits, value])
 
     def call(self, inputs, **kwargs):
+        logits, neglogpac, value, action = self.model(np.asarray(inputs))
 
-        # Policy Head
-        with tf.name_scope("policy"):
-            p = self.p_1(inputs)
-            p = self.p_2(p)
-            policy_logits = self.logits(p)
-
-        # Value Head
-        with tf.name_scope("value"):
-            #v = self.v_1(inputs)
-            #v = self.v_2(v)
-            action_value = self.action_value(p)
-
-
-
-        return {
-            "logits": policy_logits,
-            "values": tf.squeeze(action_value),
-
-        }
-
-
-    """def call(self, inputs, **kwargs):
-        # Policy Head
-        logits = self.p(inputs)
-        action_value = self.v(inputs)
-
-        return {
-            "logits": logits,
-            "action_value": tf.squeeze(action_value)
-        }"""
+        return dict(
+            logits=logits,
+            neglogpac=neglogpac,
+            values=np.squeeze(value),
+            action=action
+        )

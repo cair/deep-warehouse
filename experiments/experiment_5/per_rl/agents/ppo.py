@@ -99,9 +99,7 @@ class PPO(Agent):
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
         else:
-
-            vf_loss = tf.reduce_mean(tf.math.squared_difference(returns, tf.reduce_sum(values, axis=0)))
-            # vf_loss = tf.losses.mean_squared_error(returns, values)
+            vf_loss = tf.losses.mean_squared_error(returns, values)
 
         return vf_loss * self.args["vf_coeff"]
 
