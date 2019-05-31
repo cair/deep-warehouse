@@ -18,7 +18,6 @@ class RemoteAgent:
     def set_weights(self, weights):
         self.agent.policy.master.set_weights(weights)
 
-
     def apply_gradients(self, gradients):
         self.agent.policy.master.optimizer.apply_gradients(
             zip(gradients, self.agent.policy.master.trainable_variables)

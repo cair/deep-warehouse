@@ -74,7 +74,7 @@ PPO = dict(
     buffer_size=2048,  # 2048
     batch_shuffle=True,
     batch_size=64,
-    epochs=2,
+    epochs=10,
 
     # Optimization
     grad_clipping=0.2,  # TODO.

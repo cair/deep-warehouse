@@ -262,17 +262,8 @@ class Agent:
             # Construct batch data for the epoch
             batch_data = [{k: np.asarray(v)[batch_indices[i:i + self.batch.batch_size]] for k, v in batch.items()} for i in range(0, self.batch.counter, self.batch.batch_size)]
 
-            for b in batch_data:
-                losses, gradients = self.compute_losses(**b, **kwargs)
-                self.apply_gradients(gradients=gradients[0])
-                self.policy.optimize()
-
-            #losses, gradients = zip(*[self.compute_losses(**batch, **kwargs) for batch in batch_data])
-            #self.apply_gradients(gradients=gradients)
-
-            # Optimize all of the policies
-            #if optimize:
-            #    self.policy.optimize()
+            losses, gradients = zip(*[self.compute_losses(**batch, **kwargs) for batch in batch_data])
+            self.apply_gradients(gradients=gradients)
 
             # postprocess the data
             self.preprocess(kwargs, ptype="post")
@@ -326,8 +317,8 @@ class Agent:
 
     def apply_gradients(self, gradients):
 
-        #gradients = [grads[0] for grads in gradients]
-        #gradients = [tf.reduce_mean(grads, axis=0) for grads in zip(*gradients)]
+        gradients = [grads[0] for grads in gradients]
+        gradients = [tf.reduce_sum(grads, axis=0) / self.batch_size for grads in zip(*gradients)]
 
         # Clip gradients if enabled.
         if self.grad_clipping is not None:
@@ -336,6 +327,7 @@ class Agent:
         for policy_train in self.policy.slaves:
             # Save the calculated gradients inside the policy instance
             policy_train.set_grads(gradients)
+            self.policy.optimize()
 
 #Diagnostics
 #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
