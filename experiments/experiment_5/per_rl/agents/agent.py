@@ -231,7 +231,7 @@ class Agent:
                 batch[preprocess_name] = preprocess_res
 
     #@Benchmark
-    def train(self, optimize=True, **kwargs):
+    def train(self,  **kwargs):
         """
         :param kwargs: Kwargs is used throughout the training process.
         During preprocessing the kwargs is filled with new data, typically advantages... etc
@@ -292,17 +292,16 @@ class Agent:
             with tf.GradientTape() as tape:
 
                 # Do prediction using current slave policy, add this to the kwargs term.
-                kwargs.update(policy_train(**kwargs, training=True))
+                kwargs.update(policy_train(**kwargs, training=False))
 
                 # Do preprossessing of mini-batch data
                 self.preprocess(kwargs, ptype="mini-batch")
 
                 # Run all loss functions
                 for loss_name, loss_fn in self.processors["loss"].items():
-
                     # Perform loss calculation
                     loss = loss_fn(**kwargs)
-
+                    
                     # Add metric for current loss
                     self.metrics.add(policy_train.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 

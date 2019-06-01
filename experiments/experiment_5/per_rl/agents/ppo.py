@@ -63,7 +63,7 @@ class PPO(Agent):
 
         self.add_processor("advantages", self.advantages, "batch")
         self.add_processor("neglogp", self.mb_neglogp, "mini-batch")
-        self.add_processor("update_kl", self.post_update_kl, "post")
+        #self.add_processor("update_kl", self.post_update_kl, "post")
 
         #self.add_processor("action_kl_loss", self.kl_loss, "loss", text="Action KL Loss")
         self.add_processor("policy_loss", self.policy_loss, "loss", text="Policy loss of PPO")
@@ -158,6 +158,7 @@ class PPO(Agent):
 
         V = np.concatenate((old_values, [policy([last_obs])["values"]]))
         terminal = np.concatenate((terminals, [0]))
+
         gamma = self.args["gamma"]
         lam = self.args["gae_lambda"]
         adv = np.zeros_like(rewards)
@@ -168,7 +169,6 @@ class PPO(Agent):
             adv[t] = lastgaelam = delta + gamma * lam * nextnonterminal * lastgaelam
 
         returns = adv + old_values
-
         return dict(
             advantages=adv,
             returns=returns

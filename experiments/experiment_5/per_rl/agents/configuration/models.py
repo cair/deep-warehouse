@@ -296,22 +296,11 @@ class PPOPolicy(Policy):
             activation="linear"
         )(x)
 
-
-        p = tf.keras.layers.Softmax(name="logp")(logits)
-        logp = tf.keras.layers.Lambda(lambda d: tf.keras.backend.log(d))(p)
-        action = tf.keras.layers.Lambda(lambda d: tf.random.categorical(d, 1), name="sample_action")(logp)
-        neglogpac = tf.keras.layers.Lambda(lambda d: -d[0] * tf.one_hot(d[1][0], self.agent.action_space))([logp, action])
-
-        self.model = tf.keras.Model(inputs=inputs, outputs=[logits, neglogpac, value, action])
-
-        #self.model = tf.keras.Model(inputs=inputs, outputs=[logits, value])
+        self.model = tf.keras.Model(inputs=inputs, outputs=[logits, value])
 
     def call(self, inputs, **kwargs):
-        logits, neglogpac, value, action = self.model(np.asarray(inputs))
-
+        logits, value = self.model(np.asarray(inputs))
         return dict(
             logits=logits,
-            neglogpac=neglogpac,
             values=np.squeeze(value),
-            action=action
         )
