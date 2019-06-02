@@ -52,7 +52,7 @@ PPO = dict(
     gae=True,
     gae_lambda=0.95,
     normalize_advantages=True,
-    normalize_returns=True,
+    normalize_returns=False,
 
     # Returns
     gamma=0.99,
@@ -67,7 +67,7 @@ PPO = dict(
     vf_loss="mse",  # TODO
     vf_clipping=False,   # TODO not working properly?
     vf_clip_param=5.0,
-    vf_coeff=1.0,
+    vf_coeff=0.5,
 
 
     # Sampling and Training
@@ -75,10 +75,10 @@ PPO = dict(
     buffer_size=2048,  # 2048
     batch_shuffle=True,
     batch_size=64,
-    epochs=10,
+    epochs=20,
 
     # Optimization
-    grad_clipping=0.2,  # TODO.
+    grad_clipping=None, #1.0,
 
     # Policy definition
     policies=dict(

@@ -273,6 +273,8 @@ class Agent:
 
         self.batch.done()
         self.udata.clear()
+
+        policy.optimize()
         self.global_step += 1
 
 
@@ -331,8 +333,6 @@ class Agent:
             # Save the calculated gradients inside the policy instance
             policy_train.set_gradients(gradients)
             policy_train.optimize()
-
-        policy.optimize()
 
 #Diagnostics
 #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)
