@@ -96,6 +96,11 @@ class Policy:
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
 
+    @tf.function
+    def predict(self, inputs):
+        return self.model(inputs)
+
+
     def __iter__(self):
         return self.trainers.__iter__()
 
@@ -283,29 +288,30 @@ class PPOPolicy(Policy):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        inputs = tf.keras.Input(shape=self.agent.obs_space.shape)
+        inputs = tf.keras.Input(shape=self.agent.obs_space)
         x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(inputs)
         x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(x)
 
         value = tf.keras.layers.Dense(
             1,
             #kernel_initializer=tf.initializers.orthogonal(),
-            kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
+            #kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
             name="value",
             activation="linear"
         )(x)
 
         logits = tf.keras.layers.Dense(
             self.agent.action_space,
-            kernel_initializer=tf.initializers.VarianceScaling(scale=0.01),
+            #kernel_initializer=tf.initializers.VarianceScaling(scale=0.01),
             use_bias=False,
             activation="linear"
         )(x)
 
-        self.model = tf.keras.Model(inputs=inputs, outputs=[logits, value])
+        self.model = tf.keras.Model(inputs=inputs, outputs=[value, logits])
 
     def call(self, inputs, **kwargs):
-        logits, value = self.model(np.asarray(inputs))
+        value, logits = self.predict(np.asarray(inputs))
+
         return dict(
             logits=logits,
             values=np.squeeze(value),

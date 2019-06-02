@@ -18,14 +18,15 @@ import os
 import pathos.multiprocessing as mp
 import tensorflow as tf
 
+#tf.debugging.set_log_device_placement(True)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 # https://github.com/ADGEfficiency/dsr-rl/blob/master/PITCHME.md
 # MY NOTES: https://hastebin.com/usasisifuw
 def main(argv):
     benchmark = False
     episodes = 130454535345
-    env_name = "CartPole-v0"
+    env_name = "CartPole-v1"
     #env_name = "deep-logistics-normal-v0"
 
     def submit(args):

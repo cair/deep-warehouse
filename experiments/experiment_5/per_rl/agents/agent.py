@@ -82,7 +82,7 @@ class Agent:
         else:
             self.env = env
 
-        self.obs_space = self.env.observation_space
+        self.obs_space = self.env.observation_space if isinstance(self.env.observation_space, tuple) else self.env.observation_space.shape
         self.action_space = self.env.action_space.n  # TODO
 
         # TODO - Define as mixin?

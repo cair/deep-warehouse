@@ -89,7 +89,7 @@ PPO = dict(
             #    policy=tf.keras.optimizers.Adam(lr=3e-4),
             #    value=tf.keras.optimizers.Adam(lr=3e-4),
             #)
-            optimizer=tf.keras.optimizers.Adam(lr=3e-3, decay=3e-4),
+            optimizer=tf.keras.optimizers.Adam(lr=3e-3), #, decay=3e-4),
             double=True,
             n_trainers=1,
             interval=4,
