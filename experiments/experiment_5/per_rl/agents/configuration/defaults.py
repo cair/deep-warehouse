@@ -51,7 +51,8 @@ PPO = dict(
     # Generalized Advantage Function
     gae=True,
     gae_lambda=0.95,
-    normalize_advantages=False,
+    normalize_advantages=True,
+    normalize_returns=True,
 
     # Returns
     gamma=0.99,
@@ -66,7 +67,7 @@ PPO = dict(
     vf_loss="mse",  # TODO
     vf_clipping=False,   # TODO not working properly?
     vf_clip_param=5.0,
-    vf_coeff=0.5,
+    vf_coeff=1.0,
 
 
     # Sampling and Training
@@ -80,21 +81,20 @@ PPO = dict(
     grad_clipping=0.2,  # TODO.
 
     # Policy definition
-    policy=lambda agent: PPOPolicy(
-        agent=agent,
-        #optimizer=dict(
-        #    policy=tf.keras.optimizers.Adam(lr=3e-4),
-        #    value=tf.keras.optimizers.Adam(lr=3e-4),
-        #)
-        optimizer=tf.keras.optimizers.Adam(lr=3e-3, decay=3e-4)
-    ),
-
-    # Policy update settings
-    policy_update=dict(
-        double=True,
-        n_trainers=1,
-        interval=4,
-        strategy="copy",  # copy, mean  # TODO wierd
-        type="weights"  # weights, gradients  # TODO wierd
+    policies=dict(
+        ppo=dict(
+            default=True,
+            policy=PPOPolicy,
+            #optimizer=dict(
+            #    policy=tf.keras.optimizers.Adam(lr=3e-4),
+            #    value=tf.keras.optimizers.Adam(lr=3e-4),
+            #)
+            optimizer=tf.keras.optimizers.Adam(lr=3e-3, decay=3e-4),
+            double=True,
+            n_trainers=1,
+            interval=1,
+            strategy="copy",  # copy, mean  # TODO wierd
+            synchronize="weights"  # weights, gradients  # TODO wierd
+        )
     )
 )

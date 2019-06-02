@@ -52,8 +52,7 @@ class Agent:
 
     def __init__(self,
                  env,
-                 policy,
-                 policy_update,
+                 policies,
                  buffer_mode: str = "episodic",
                  buffer_size: int = 2048,
                  batch_shuffle=False,
@@ -95,7 +94,7 @@ class Agent:
         self.dtype = dtype
         self.grad_clipping = grad_clipping
         self.epochs = epochs
-        self.policy = PolicyManager(policy(self), **policy_update)  # Initialize policy and pass to the policy manager.
+        self.pman = PolicyManager(self, policies)  # Initialize policy and pass to the policy manager.
 
         # TODO - Define as mixin?
         self._tensorboard_enabled = tensorboard_enabled
@@ -126,7 +125,7 @@ class Agent:
             batch_size=batch_size
         )
 
-        self.epoch = 0
+        self.global_step = 0
         self._last_observation = {}
 
     def step(self, action):
@@ -180,7 +179,7 @@ class Agent:
             inputs = inputs[None, :]
         self.data["inputs"] = inputs
 
-        pred = self.policy(inputs)
+        pred = self.pman(inputs)
 
         self.data.update({
             "old_%s" % k: v for k, v in pred.items()
@@ -231,7 +230,7 @@ class Agent:
                 batch[preprocess_name] = preprocess_res
 
     #@Benchmark
-    def train(self,  **kwargs):
+    def train(self):
         """
         :param kwargs: Kwargs is used throughout the training process.
         During preprocessing the kwargs is filled with new data, typically advantages... etc
@@ -240,18 +239,18 @@ class Agent:
         if not self.batch.ready():
             return False
 
-        # Save policy into the kwargs dictionary for use in preprocessing etc.
-        kwargs["policy"] = self.policy
-        kwargs.update(self._last_observation)
-
-        # Retrieve batch
-        batch = self.batch.get()
+        dataset = self.batch.get()   # Retrieve batch
+        policy = self.pman.get_default()  # TODO - kINDA LIMITING
+        kwbatch = dict(
+            policy=policy,
+        )
+        kwbatch.update(self._last_observation)
 
         # Retrieve batch indices for this batch
         batch_indices = np.arange(self.batch.counter)
 
         # Preprocess the data
-        self.preprocess(batch, ptype="batch", **kwargs)
+        self.preprocess(dataset, ptype="batch", **kwbatch)
 
         # Run number of epochs on the batch
         for epoch in range(self.epochs):
@@ -261,20 +260,20 @@ class Agent:
                 np.random.shuffle(batch_indices)
 
             # Construct batch data for the epoch
-            batch_data = [{k: np.asarray(v)[batch_indices[i:i + self.batch.batch_size]] for k, v in batch.items()} for i in range(0, self.batch.counter, self.batch.batch_size)]
+            batch_data = [{k: np.asarray(v)[batch_indices[i:i + self.batch.batch_size]] for k, v in dataset.items()} for i in range(0, self.batch.counter, self.batch.batch_size)]
 
-            losses, gradients = zip(*[self.compute_losses(**batch, **kwargs) for batch in batch_data])
-            self.apply_gradients(gradients=gradients)
+            losses, gradients = zip(*[self.compute_losses(policy=policy, **batch) for batch in batch_data])
+            self.apply_gradients(policy=policy, gradients=gradients)
 
             # postprocess the data
-            self.preprocess(kwargs, ptype="post")
+            self.preprocess(kwbatch, ptype="post")
 
         self.metrics.add("epochs", 1, ["sum"], "time/training", total=True, episode=True)
         self.metrics.done(epoch=True)
 
         self.batch.done()
         self.udata.clear()
-        self.epoch += 1
+        self.global_step += 1
 
 
         """Update metrics for training"""
@@ -283,16 +282,16 @@ class Agent:
 
         return losses
 
-    def compute_losses(self, **kwargs):
-        total_loss = 0
+    def compute_losses(self, policy, **kwargs):
         losses = []
         gradients = []
-        for policy_train in self.policy.slaves:
+
+        for policy_train in policy:
             """Run all loss functions"""
             with tf.GradientTape() as tape:
 
                 # Do prediction using current slave policy, add this to the kwargs term.
-                kwargs.update(policy_train(**kwargs, training=False))
+                kwargs.update(policy_train(**kwargs, training=True))
 
                 # Do preprossessing of mini-batch data
                 self.preprocess(kwargs, ptype="mini-batch")
@@ -301,12 +300,11 @@ class Agent:
                 for loss_name, loss_fn in self.processors["loss"].items():
                     # Perform loss calculation
                     loss = loss_fn(**kwargs)
-                    
+
                     # Add metric for current loss
                     self.metrics.add(policy_train.alias + "/" + loss_name, loss, ["mean"], "loss", epoch=True, total=True)
 
                     # Accumulate losses
-                    total_loss += loss
                     losses.append(loss)
 
                 # Calculate the gradient of this backward pass.
@@ -318,9 +316,9 @@ class Agent:
 
                 gradients.append(grads)
 
-        return total_loss, gradients
+        return np.sum(losses), gradients
 
-    def apply_gradients(self, gradients):
+    def apply_gradients(self, policy,  gradients):
 
         gradients = [grads[0] for grads in gradients]
         gradients = [tf.reduce_sum(grads, axis=0) / self.batch_size for grads in zip(*gradients)]
@@ -329,10 +327,12 @@ class Agent:
         if self.grad_clipping is not None:
             gradients, _grad_norm = tf.clip_by_global_norm(gradients, self.grad_clipping)
 
-        for policy_train in self.policy.slaves:
+        for policy_train in policy:
             # Save the calculated gradients inside the policy instance
-            policy_train.set_grads(gradients)
-            self.policy.optimize()
+            policy_train.set_gradients(gradients)
+            policy_train.optimize()
+
+        policy.optimize()
 
 #Diagnostics
 #self.metrics.add("variance", np.mean([np.var(grad) for grad in grads]), ["mean"], "gradients", epoch=True)

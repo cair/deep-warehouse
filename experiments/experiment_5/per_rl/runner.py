@@ -10,7 +10,7 @@ from experiments.experiment_5.per_rl.agents.reinforce import REINFORCE
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("callgraph", True, help="Creates a callgraph of the algorithm")
-
+import numpy as np
 import gym
 import gym_deep_logistics.gym_deep_logistics
 import os
@@ -46,7 +46,7 @@ def main(argv):
 
             action = agent.predict(env.state)
 
-            if agent.epoch < curriculum_epochs and is_deep_logisitcs:
+            if agent.global_step < curriculum_epochs and is_deep_logisitcs:
                 action = manhattan_control(env.env.agent, perform_action=False)
             state1, reward, terminal, info = agent.step(action)
 
@@ -56,7 +56,7 @@ def main(argv):
 
             agent.observe(
                 actions=tf.one_hot(action, agent.action_space),
-                rewards=reward,
+                rewards=np.float32(reward),
                 terminals=terminal
             )
 

@@ -45,6 +45,7 @@ from experiments.experiment_5.per_rl.utils.decorators import KeepLocals
 @DecoratedAgent
 class PPO(Agent):
     PARAMETERS = [
+        "normalize_returns",
         "normalize_advantages",
         "gae_lambda",
         "gae",
@@ -67,8 +68,9 @@ class PPO(Agent):
 
         #self.add_processor("action_kl_loss", self.kl_loss, "loss", text="Action KL Loss")
         self.add_processor("policy_loss", self.policy_loss, "loss", text="Policy loss of PPO")
-        self.add_processor("value_loss", self.value_loss, "loss", text="Action loss of PPO")
         self.add_processor("entropy_loss", self.entropy_loss, "loss", text="Action loss of PPO")
+        self.add_processor("value_loss", self.value_loss, "loss", text="Action loss of PPO")
+
         self.add_callback(self.on_terminal, "on_terminal")
 
     def on_terminal(self):
@@ -96,10 +98,12 @@ class PPO(Agent):
             self.metrics.add("vf_clipfrac", vf_clipfrac, ["mean"], "train", epoch=True)
             vf_losses_1 = tf.square(values - returns)
             vf_losses_2 = tf.square(v_pred_clipped - returns)
+
             vf_loss = tf.reduce_mean(tf.maximum(vf_losses_1, vf_losses_2))
 
+
         else:
-            vf_loss = tf.losses.mean_squared_error(returns, values)
+            vf_loss = tf.losses.mean_squared_error(tf.stop_gradient(returns), values)
 
         return vf_loss * self.args["vf_coeff"]
 
@@ -126,7 +130,7 @@ class PPO(Agent):
 
     def policy_loss(self, neglogpac_old, neglogpac_new, advantages, **kwargs):
 
-        surr1 = tf.exp(tf.stop_gradient(neglogpac_old) - neglogpac_new)
+        surr1 = tf.exp(neglogpac_old - neglogpac_new)
         surr2 = tf.clip_by_value(
             surr1,
             1.0 - self.args["epsilon"],
@@ -155,12 +159,12 @@ class PPO(Agent):
         )
 
     def generalized_advantage_estimation(self, old_values, last_obs, policy, rewards, terminals, **kwargs):
-
         V = np.concatenate((old_values, [policy([last_obs])["values"]]))
         terminal = np.concatenate((terminals, [0]))
 
         gamma = self.args["gamma"]
         lam = self.args["gae_lambda"]
+
         adv = np.zeros_like(rewards)
         lastgaelam = 0
         for t in reversed(range(self.batch.counter)):
@@ -175,6 +179,7 @@ class PPO(Agent):
         )
 
     def discounted_returns(self, rewards, terminals, old_values, **kwargs):
+
         discounted_rewards = np.zeros_like(rewards)
         advantage = np.zeros_like(rewards)
         cum_r = 0
@@ -195,7 +200,10 @@ class PPO(Agent):
             self.discounted_returns(**kwargs)
 
         if self.args["normalize_advantages"]:
-            data["advantages"] = (data["advantages"] - data["advantages"].mean()) / (data["advantages"].std() + 1e-8)
+            data["advantages"] = utils.normalize(data["advantages"])
+
+        if self.args["normalize_returns"]:
+            data["returns"] = utils.normalize(data["returns"])
 
         return data
 

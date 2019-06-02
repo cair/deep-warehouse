@@ -5,7 +5,10 @@ import gym
 import tensorflow as tf
 import inspect
 import numpy as np
-import collections
+
+
+def normalize(d):
+    return (d - d.mean()) / (d.std() + 1e-8)
 
 
 def explained_variance(ypred, y):
