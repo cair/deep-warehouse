@@ -105,6 +105,10 @@ class PPO(Agent):
         else:
             vf_loss = tf.losses.mean_squared_error(returns, values)
 
+        self.metrics.add(
+            "explained-variance",
+            utils.explained_variance(old_values, returns), ["mean"], "loss", epoch=True, total=False)
+
         return vf_loss * self.args["vf_coeff"]
 
     # @KeepLocals(

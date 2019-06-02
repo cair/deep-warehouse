@@ -52,7 +52,7 @@ PPO = dict(
     gae=True,
     gae_lambda=0.95,
     normalize_advantages=False,
-    normalize_returns=False,
+    normalize_returns=True,
 
     # Returns
     gamma=0.99,
@@ -67,7 +67,7 @@ PPO = dict(
     vf_loss="mse",  # TODO
     vf_clipping=False,   # TODO not working properly?
     vf_clip_param=5.0,
-    vf_coeff=0.5,
+    vf_coeff=1.0,
 
 
     # Sampling and Training
