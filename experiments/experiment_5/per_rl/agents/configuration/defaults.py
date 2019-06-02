@@ -51,7 +51,7 @@ PPO = dict(
     # Generalized Advantage Function
     gae=True,
     gae_lambda=0.95,
-    normalize_advantages=True,
+    normalize_advantages=False,
     normalize_returns=False,
 
     # Returns
@@ -75,10 +75,10 @@ PPO = dict(
     buffer_size=2048,  # 2048
     batch_shuffle=True,
     batch_size=64,
-    epochs=20,
+    epochs=10,
 
     # Optimization
-    grad_clipping=None, #1.0,
+    grad_clipping=0.2, # TODO.
 
     # Policy definition
     policies=dict(
@@ -92,7 +92,7 @@ PPO = dict(
             optimizer=tf.keras.optimizers.Adam(lr=3e-3, decay=3e-4),
             double=True,
             n_trainers=1,
-            interval=1,
+            interval=4,
             strategy="copy",  # copy, mean  # TODO wierd
             synchronize="weights"  # weights, gradients  # TODO wierd
         )

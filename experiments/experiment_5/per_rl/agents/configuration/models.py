@@ -106,6 +106,7 @@ class Policy:
         self._gradients = None
 
     def set_gradients(self, grads):
+        assert self._gradients is None
         self._gradients = grads
 
     def get_weights(self):
@@ -222,11 +223,9 @@ class Policy:
         if self.double:
 
             # Updates should happen in intervals
-
-            if self.agent.global_step % self.sync_interval != 0:
+            if (self.agent.global_step + 1) % self.sync_interval != 0:
                 return
 
-            print(self.agent.global_step)
             if self.synchronize == "weights":
                 self._synchronize_weights()
 
@@ -286,24 +285,22 @@ class PPOPolicy(Policy):
         super().__init__(**kwargs)
         inputs = tf.keras.Input(shape=self.agent.obs_space.shape)
         x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(inputs)
-
-        p1 = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(x)
-        v1 = tf.keras.layers.Dense(128, use_bias=False, activation="tanh", name="v1")(x)
+        x = tf.keras.layers.Dense(128, use_bias=False, activation="relu")(x)
 
         value = tf.keras.layers.Dense(
             1,
-            kernel_initializer=tf.initializers.orthogonal(),
-            #kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
+            #kernel_initializer=tf.initializers.orthogonal(),
+            kernel_initializer=tf.initializers.VarianceScaling(scale=1.0),
             name="value",
             activation="linear"
-        )(v1)
+        )(x)
 
         logits = tf.keras.layers.Dense(
             self.agent.action_space,
             kernel_initializer=tf.initializers.VarianceScaling(scale=0.01),
             use_bias=False,
             activation="linear"
-        )(p1)
+        )(x)
 
         self.model = tf.keras.Model(inputs=inputs, outputs=[logits, value])
 

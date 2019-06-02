@@ -103,7 +103,7 @@ class PPO(Agent):
 
 
         else:
-            vf_loss = tf.losses.mean_squared_error(tf.stop_gradient(returns), values)
+            vf_loss = tf.losses.mean_squared_error(returns, values)
 
         return vf_loss * self.args["vf_coeff"]
 
