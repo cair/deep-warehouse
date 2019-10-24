@@ -7,6 +7,7 @@ from deep_logistics import cell_types
 class PygameGraphics:
 
     def __init__(self, environment, game_width, game_height, cell_width, cell_height, has_window=True):
+        self.debug = True
         self.environment = environment
         self.game_width = game_width
         self.game_height = game_height
@@ -24,6 +25,7 @@ class PygameGraphics:
         self.environment.grid.cb_on_cell_change.append(self.on_cell_change)
 
         if self.has_window:
+            pygame.font.init()
             pygame.display.init()
             self.canvas = pygame.display.set_mode(
                 (self.canvas_shape[1], self.canvas_shape[0]),
@@ -38,6 +40,17 @@ class PygameGraphics:
         self.SPRITE_PICKUP_POINT = self._init_sprite(self.bgr2rgb(cell_types.OrderPickup.COLOR), borders=True)
         self.SPRITE_SPAWN_POINT = self._init_sprite(self.bgr2rgb(cell_types.SpawnPoint.COLOR), borders=True)
         self.SPRITE_AGENT = self._init_sprite(self.bgr2rgb(cell_types.Agent.COLOR), borders=True)
+
+        if self.debug:
+            myfont = pygame.font.SysFont('Times New Roman', 30)
+            self.SPRITE_CELL_T = myfont.render('A', False, (0, 0, 0))
+            self.SPRITE_DELIVERY_POINT_T = myfont.render('B', False, (255, 255, 255))
+            self.SPRITE_DELIVERY_POINT_ACTIVE_T = myfont.render('C', False, (255, 255, 255))
+            self.SPRITE_PICKUP_POINT_T = myfont.render('D', False, (255, 255, 255))
+            self.SPRITE_SPAWN_POINT_T = myfont.render('E', False, (0, 0, 0))
+            self.SPRITE_AGENT_T = myfont.render('F', False, (0, 0, 0))
+
+
 
         self._init_canvas()
 
@@ -87,6 +100,7 @@ class PygameGraphics:
 
         for cell in self.changes_cells:
             rect = self.rectangles[cell.i]
+
             # TODO automate this if clause...
             if cell.occupant:
                 self.canvas.blit(self.SPRITE_AGENT, rect)
@@ -101,8 +115,27 @@ class PygameGraphics:
             elif cell.type == cell_types.OrderPickup:
                 self.canvas.blit(self.SPRITE_PICKUP_POINT, rect)
 
+        if self.debug:
+            for cell in self.changes_cells:
+                rect = self.rectangles[cell.i]
+                rect = (rect.centerx - (self.cell_width / 4), rect.centery - (self.cell_height / 4))
+                # TODO automate this if clause...
+                if cell.occupant:
+                    self.canvas.blit(self.SPRITE_AGENT_T, rect)
+                elif cell.type == cell_types.SpawnPoint:
+                    self.canvas.blit(self.SPRITE_SPAWN_POINT_T, rect)
+                elif cell.type == cell_types.OrderDelivery:
+                    self.canvas.blit(self.SPRITE_DELIVERY_POINT_T, rect)
+                elif cell.type == cell_types.OrderDeliveryActive:
+                    self.canvas.blit(self.SPRITE_DELIVERY_POINT_ACTIVE_T, rect)
+                elif cell.type == cell_types.OrderPickup:
+                    self.canvas.blit(self.SPRITE_PICKUP_POINT_T, rect)
+
+
+
         if self.has_window:
             pygame.display.update(self.changes_rects)
+
 
         self.changes_rects.clear()
         self.changes_cells.clear()
