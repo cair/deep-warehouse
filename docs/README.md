@@ -1,4 +1,4 @@
-# Deep Warehouse
+
 <img src="deep_warehouse.png" width=400/>
 
 Deep Warehouse is a free-to-use software implementation of warehouse structures. The aim of this project is to provide a highly efficient simulation for creating learning agents towards mastering warehouse logistics with autonomous agents.
